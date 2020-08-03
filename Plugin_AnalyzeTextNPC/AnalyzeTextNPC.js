@@ -14,8 +14,10 @@ update
 Version
 　SRPG Studio Version:1.210
 
+URL
+https://github.com/RYBA549/RYBA_SrpgStudio
 
-MIT License Copyright (c) 2020 RYBA
+MIT License Copyright (c) 2020 RYBA(熱帯魚)
   
 --------------------------------------------------------------------------*/
 var RYBA = RYBA || {};
