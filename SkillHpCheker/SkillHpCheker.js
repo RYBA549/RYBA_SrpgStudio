@@ -26,12 +26,12 @@ HP remaining at least 80%.
 }
 
 update
-20/08/03　create
+20/08/03ﾂ　create
 Version
-　SRPG Studio Version:1.215
+ﾂ　SRPG Studio Version:1.215
 URL
 https://github.com/RYBA549/RYBA_SrpgStudio
-MIT License Copyright (c) 2020 RYBA(熱帯魚)
+MIT License Copyright (c) 2020 RYBA(窶扨窶佚鯛ｹ窶ｺ)
   
 --------------------------------------------------------------------------*/
 var RYBA = RYBA || {};
@@ -85,18 +85,20 @@ SkillRandomizer._isSkillInvokedInternal = function(active, passive, skill) {
 }
 
 
+var alias2 = SupportCalculator._isSupportable;
 SupportCalculator._isSupportable = function(unit, targetUnit, skill) {
-	if (targetUnit === null) {
-		targetUnit = unit;
-	}
 	
-	var result = skill.getTargetAggregation().isCondition(targetUnit);
-	if (result) {
-		var enemyHpRate = skill.custom.RYBA_CondSupportHpRate;
-		if(enemyHpRate != null){
-			result = RYBA.UnitHpChecker.isTargetHp(targetUnit, enemyHpRate );
-		}
-	}
+    var result = alias2.call(this, unit, targetUnit, skill);
+    if( !result ){
+        return false;
+    }
+	if (targetUnit === null) {
+        targetUnit = unit;
+    }
+    var enemyHpRate = skill.custom.RYBA_CondSupportHpRate;
+    if(enemyHpRate != null){
+        result = RYBA.UnitHpChecker.isTargetHp(targetUnit, enemyHpRate );
+    }
 	return result;
 };
 
