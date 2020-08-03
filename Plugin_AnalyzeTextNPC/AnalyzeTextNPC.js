@@ -29,7 +29,7 @@ RYBA.DataVariable.Np1 = defineObject(BaseDataVariable,
     },
     
     getKey: function() {
-        var key = /\\np2\[(\d+)\]/;
+        var key = /\\np1\[(\d+)\]/;
         
         return key;
     }
