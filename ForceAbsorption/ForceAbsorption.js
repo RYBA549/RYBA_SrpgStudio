@@ -183,7 +183,6 @@ RYBA.StateControl = {
     }
 }
 
-//入れ替えを確認する
 RYBA.MapSequenceCommand = RYBA.MapSequenceCommand || {};
 RYBA.MapSequenceCommand.AddState = defineObject(BaseFlowEntry,
 {
@@ -221,13 +220,11 @@ RYBA.MapSequenceCommand.AddState = defineObject(BaseFlowEntry,
 });
 
 (function() {
-//味方
 var alias1 = MapSequenceCommand._pushFlowEntries;
 MapSequenceCommand._pushFlowEntries = function(straightFlow) {
 	alias1.call(this,straightFlow );
 	straightFlow.pushFlowEntry(RYBA.MapSequenceCommand.AddState);
 };
-//敵
 var alias2 = WaitAutoAction._pushFlowEntries;
 WaitAutoAction._pushFlowEntries = function(straightFlow) {
 	alias2.call(this,straightFlow );
