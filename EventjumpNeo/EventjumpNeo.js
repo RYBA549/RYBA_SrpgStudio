@@ -16,7 +16,7 @@ https://github.com/RYBA549/RYBA_SrpgStudio
 MIT License Copyright (c) 2020 RYBA(熱帯魚)
   
 --------------------------------------------------------------------------*/
-RYBA = RYBA || {};
+var RYBA = RYBA || {};
 
 RYBA.EventControl = {
   eventRegister:function(list,id){
