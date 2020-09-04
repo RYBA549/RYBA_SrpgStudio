@@ -82,9 +82,12 @@ RYBA.CreatePhantomControl = {
             }
         }
 
-        var pos = PosChecker.getNearbyPosFromSpecificPos(x, y, baseUnit, null);
-        if (!pos) {
-            return null;
+        var pos = {x:x,y:y};
+        if (PosChecker.getUnitFromPos(x,y) !== null) {
+            pos = PosChecker.getNearbyPosFromSpecificPos(x, y, baseUnit, null);
+            if (!pos) {
+                return null;
+            }
         }
 
         var unit = root.getObjectGenerator().generateUnitFromBookmarkUnit(baseUnit,unitType);
