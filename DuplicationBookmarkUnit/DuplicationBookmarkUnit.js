@@ -1,24 +1,21 @@
 /*--------------------------------------------------------------------------
   
 The plugin provides an event command that allows you to generate units in the bookmarks tab.
-
 How to use
-
 Code Execution
 [RYBA.CreateBookmarkControl.createBookmarkContent();]
 and write
-
 original content
 Number 1 (X coordinate)
 Number 2 (Y coordinate)
 Number 3 (bookmarkId)
 Number 4 (UnitType: PLAYER:0,ENEMY:1,ALLY:2)
 Set parameters
-
 update
 20/08/15@create
+20/09/05@update
 Version
-@SRPG Studio Version:1.215
+@SRPG Studio Version:1.217
 URL
 https://github.com/RYBA549/RYBA_SrpgStudio
 MIT License Copyright (c) 2020 RYBA(熱帯魚)
@@ -60,9 +57,12 @@ RYBA.CreateBookmarkControl = {
             }
         }
 
-        var pos = PosChecker.getNearbyPosFromSpecificPos(x, y, baseUnit, null);
-        if (!pos) {
-            return null;
+        var pos = {x:x,y:y};
+        if (PosChecker.getUnitFromPos(x,y) !== null) {
+            pos = PosChecker.getNearbyPosFromSpecificPos(x, y, baseUnit, null);
+            if (!pos) {
+                return null;
+            }
         }
 
         var unit = root.getObjectGenerator().generateUnitFromBookmarkUnit(baseUnit,unitType);
