@@ -12,11 +12,8 @@ MIT License Copyright (c) 2020 RYBA(熱帯魚)
   
 --------------------------------------------------------------------------------------------------*/
 (function () {
-	//スキル習得
-	//現在セットしているスキルと外しているスキルをID配列でまとめて取得
 	Miscellaneous.getSetSkillAndRemoveSkillIdArray= function(unit){
-		var arr = Miscellaneous.getRemoveSkillIdArray(unit);
-		// 現在所持しているスキルを配列にして取得
+		var arr = [];
 		var i, skill;
 		var list = unit.getSkillReferenceList();
 		var count = list.getTypeCount();
@@ -42,7 +39,6 @@ MIT License Copyright (c) 2020 RYBA(熱帯魚)
 		return false;
 	}
 
-	//スキル習得での条件を変更する
 	SkillChangeItemAvailability._isCondition = function(unit, targetUnit, item) {
 		if(!item.getTargetAggregation().isCondition(targetUnit)){
 			return false;
