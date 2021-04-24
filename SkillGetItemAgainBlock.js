@@ -38,12 +38,21 @@ MIT License Copyright (c) 2020 RYBA(熱帯魚)
 		}
 		return false;
 	}
-
+	Miscellaneous.getSkillGetSkillData = function(item){
+	    if(item.isWeapon()){
+	      return null;
+	    }
+	    if( item.getItemType() !== ItemType.SKILLGET){
+	    	return null;
+	    }
+	    var info = item.getSkillChangeInfo();
+	    return info.getSkill();
+	};
 	SkillChangeItemAvailability._isCondition = function(unit, targetUnit, item) {
 		if(!item.getTargetAggregation().isCondition(targetUnit)){
 			return false;
 		}
-		var skill = Nettaigyo.Item.CustomControl.getSkillGetSkillData(item);
+		var skill = Miscellaneous.getSkillGetSkillData(item);
 		if(skill == null){
 			return false;
 		}
