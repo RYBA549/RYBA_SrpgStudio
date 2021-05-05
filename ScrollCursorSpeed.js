@@ -1,12 +1,13 @@
-/*--------------------------------------------------------------------------
+/*--------------------------------------------------------------------------------------------------
+update
+21/05/05@create
+Version
+@SRPG Studio Version:1.216
+URL
+https://github.com/RYBA549/RYBA_SrpgStudio
+MIT License Copyright (c) 2020 RYBA(熱帯魚)
   
-
-  
-  作成者:
-  熱帯魚
-  
-  
---------------------------------------------------------------------------*/
+--------------------------------------------------------------------------------------------------*/
 (function() {
     var alias1 = ConfigWindow._configureConfigItem;
     ConfigWindow._configureConfigItem = function(groupArray) {
