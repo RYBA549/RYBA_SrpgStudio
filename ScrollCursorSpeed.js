@@ -14,11 +14,17 @@ MIT License Copyright (c) 2020 RYBA(熱帯魚)
         alias1.call(this,groupArray);
         groupArray.appendObject(ConfigItem.ScrollCursorSpeed);
     }
+
     InputControl.resetCounterInfo = function(){
         var ary = ConfigItem.ScrollCursorSpeed.getSpeedArray();
-		var keyWait = ary[ConfigItem.ScrollCursorSpeed.getFlagValue()];
-		this._counter.setCounterInfo(keyWait);
-	};
+        var keyWait = ary[ConfigItem.ScrollCursorSpeed.getFlagValue()];
+        this._counter.setCounterInfo(keyWait);
+    };
+    var aliasInitSingleton = InputControl.initSingleton;
+    InputControl.initSingleton = function() {
+        aliasInitSingleton.call(this);
+        this.resetCounterInfo();
+    };
 	ConfigItem.ScrollCursorSpeed = defineObject(BaseConfigtItem,
 	{
 		selectFlag: function(index) {
