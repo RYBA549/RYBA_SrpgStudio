@@ -17,7 +17,6 @@ MIT License Copyright (c) 2020 RYBA(熱帯魚)
     InputControl.resetCounterInfo = function(){
         var ary = ConfigItem.ScrollCursorSpeed.getSpeedArray();
 		var keyWait = ary[ConfigItem.ScrollCursorSpeed.getFlagValue()];
-		this._counterNettaigyo.setCounterInfo(keyWait);
 		this._counter.setCounterInfo(keyWait);
 	};
 	ConfigItem.ScrollCursorSpeed = defineObject(BaseConfigtItem,
