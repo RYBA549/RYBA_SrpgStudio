@@ -48,6 +48,9 @@ CommunicationScreen._addBookmarkEvent = function(eventArray, eventList,numAry){
     for (i = count-1; 0 <= i; i--) {
         number = numAry[i];
         data = eventList.getDataFromId(number);
+        if(data == null){
+            continue;
+        }
         if (this._isEvent(data)) {
             resultArray.push(this._createEntryData(data,false,EventExecutedType.FREE));
         }
