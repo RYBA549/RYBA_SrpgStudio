@@ -187,7 +187,7 @@ Ryba.ResurrectioningPanel = defineObject(BaseObject,{
         this._resList = [];
         this._resListCount = 0;
         var i, unit;
-        var list = PlayerList.getDeathAndInjuryListSamePosHash(unit);
+        var list = PlayerList.getInjuryListSamePosHash(unit);
         var count = list.getCount();
         for (i = 0 ; i < count; i++) {
             unit = list.getData(i);
@@ -561,7 +561,7 @@ Ryba.UnitCommand.SurvivedCommand = defineObject(Ryba.UnitCommand.BaseUseAction,
     _summonUnit:function(){
         var selfUnit = this.getCommandTarget();
         var i, unit;
-        var list = PlayerList.getDeathAndInjuryListSamePosHash(selfUnit);
+        var list = PlayerList.getInjuryListSamePosHash(selfUnit);
         var count = list.getCount();
         for (i = 0 ; i < count; i++) {
             unit = list.getData(i);
@@ -772,7 +772,7 @@ Ryba.UnitCommand.SurvivedCommand = defineObject(Ryba.UnitCommand.BaseUseAction,
 	};
     //------------------------------------------------------------------------------
     //AllUnitList
-	AllUnitList.getDeathAndInjuryList = function(list,notGuest) {
+	AllUnitList.getInjuryList = function(list,notGuest) {
 		var funcCondition = function(unit) {
 			var aliveState = unit.getAliveState();
 			//ゲストは含まない
@@ -782,7 +782,7 @@ Ryba.UnitCommand.SurvivedCommand = defineObject(Ryba.UnitCommand.BaseUseAction,
 				}
 			}
 			
-			return aliveState === AliveType.DEATH || aliveState === AliveType.INJURY;
+			return aliveState === AliveType.INJURY;
 		};
 		
 		return this.getList(list, funcCondition);
@@ -803,11 +803,11 @@ Ryba.UnitCommand.SurvivedCommand = defineObject(Ryba.UnitCommand.BaseUseAction,
 	};
 
 	//同じポジションのユニットは配列上に１つしかない
-	AllUnitList.getDeathAndInjuryListSamePosHash = function(list,selfUnit) {
+	AllUnitList.getInjuryListSamePosHash = function(list,selfUnit) {
 		var i, unit, targetUnit, mapX, mapY;
 		var arr = [];
 		var posArr = [];
-		var list = AllUnitList.getDeathAndInjuryList(list,true);
+		var list = AllUnitList.getInjuryList(list,true);
 		var count = list.getCount();
 		for (i = 0 ; i < count; i++) {
 			unit = list.getData(i);
@@ -838,8 +838,8 @@ Ryba.UnitCommand.SurvivedCommand = defineObject(Ryba.UnitCommand.BaseUseAction,
 		return obj;
 	};
 
-    PlayerList.getDeathAndInjuryListSamePosHash = function(selfUnit) {
-		return AllUnitList.getDeathAndInjuryListSamePosHash(this.getMainList(),selfUnit);
+    PlayerList.getInjuryListSamePosHash = function(selfUnit) {
+		return AllUnitList.getInjuryListSamePosHash(this.getMainList(),selfUnit);
 	};
 
     UnitCommand._baseKeywordSkillAppendCommand = function(groupArray, keyword, classObj){
