@@ -10,7 +10,8 @@
 {
     easyAnimeId:104,
     getExpPoint:10,
-    unitHp:1
+    unitHp:1,
+    skillCount:1
 }
 
   ・easyAnimeIdでアニメーションのIDを指定して再生します。
@@ -19,6 +20,8 @@
 　　設定しなかった場合0となります
 　・unitHpを1にすることで蘇生したユニットのHPを1にできます。
   　設定しなかった場合HP満タンで蘇生されます
+  ・skillCountは1マップでの使用回数
+  　設定しなかった場合-1扱い（回数無限）となります
 
 ■注意点
 　unitHpは1を設定するか、そもそも書かないかの２つ以外を想定していません
@@ -60,6 +63,56 @@ Ryba.PlayerTurnModeMAP_ShowSurvivedUnit = true;
 
 //trueにすると蘇生スキルを持つユニットを選択すると蘇生対象が半透明表示される
 Ryba.PlayerTurnModeAREA_ShowSurvivedUnit = true;
+
+//Ryba.SurvivedCounter.clearUnitUseCountAll();
+Ryba.SurvivedCounter = {
+
+    clearUnitUseCountAll: function() {
+		var i, unit;
+		var list = PlayerList.getAliveDefaultList();
+		var count = list.getCount();
+
+		for (var i = 0; i < count; i++) {
+			unit = list.getData(i);
+			this.clearUnitUseCount(unit);
+		}
+	},
+
+    clearUnitUseCount:function(unit){
+        if(unit == null){
+            return;
+        }
+		delete unit.custom.survivedCommandSkillCount;
+    },
+
+    getUnitUseCount:function(unit){
+        var useCount = unit.custom.survivedCommandSkillCount;
+        if(typeof useCount === 'number'){
+            return useCount;
+        }
+        return 0;
+    },
+
+    addUnitUseCount:function(unit){
+        var count = this.getUnitUseCount(unit);
+        unit.custom.survivedCommandSkillCount = count + 1;
+    },
+
+    getRemainingSkillCount:function(unit, skill){
+        var remainNum = 0;
+        var skillCount = skill.custom.skillCount;
+        if(typeof skillCount === 'number'){
+            remainNum  = skillCount - this.getUnitUseCount(unit);
+            if(skillCount < 0){
+                remainNum = 0;
+            }
+        }else{
+            remainNum = -1;
+        }
+
+        return remainNum;
+    }
+};
 
 //------------------------------------------------------------------------------
 //蘇生対象のキャラチップ描画する関数
@@ -114,8 +167,12 @@ Ryba.ResurrectioningPanel = defineObject(BaseObject,{
         if (unit.getUnitType() === UnitType.PLAYER) {
             var skill = SkillControl.getPossessionCustomSkill(unit,Ryba.UnitCommand.RybaSurvivedCommandKeyword);
             if(skill){
-                //root.log('createResList')
-                this._createResList(unit);
+                var skillCount = Ryba.SurvivedCounter.getRemainingSkillCount(unit, skill);
+                //残り回数があるなら表示
+                if(skillCount !== 0){
+                    //root.log('createResList')
+                    this._createResList(unit);
+                }
             }
             this._updateing = false;
         }
@@ -173,6 +230,7 @@ Ryba.UnitCommand.BaseUseAction = defineObject(UnitListCommand,
     _posSelector: null,
     _exp: 0,
     _skill:null,
+    _skillCount:-1,
     _commandName:'',
     _anime: null,
     _bottomText:null,
@@ -300,6 +358,7 @@ Ryba.UnitCommand.BaseUseAction = defineObject(UnitListCommand,
     _moveQuick: function() {
         if (this._dynamicAnime.moveDynamicAnime() !== MoveResult.CONTINUE) {
             this._mainAction();
+            this._addUnitSkillCount();
             if (this._exp > 0) {
                 this._changeExp();
             }
@@ -403,6 +462,12 @@ Ryba.UnitCommand.BaseUseAction = defineObject(UnitListCommand,
             return ;
         }
 
+        this._skillCount = Ryba.SurvivedCounter.getRemainingSkillCount(unit, skill);
+
+        if(this._skillCount === 0){
+            return;
+        }
+
         //root.log('setSkill')
 
         this._setAnime(skill);
@@ -412,6 +477,9 @@ Ryba.UnitCommand.BaseUseAction = defineObject(UnitListCommand,
         }
 
         this._commandName = skill.getName();
+        if(this._skillCount > 0){
+            this._commandName += '\n[残り' + this._skillCount +'回]';
+        }
         this._bottomText = null;
 
         this._setSkillData(unit, skill);
@@ -448,8 +516,9 @@ Ryba.UnitCommand.BaseUseAction = defineObject(UnitListCommand,
     _getTradeArray: function(unit) {
         var i, x, y, targetUnit;
         var indexArray = [];
-        
-        if (this._skill === null) {
+        //root.log('_getTradeArray' + this._skillCount)
+        if (this._skill === null || this._skillCount === 0) {
+            root.log('seki' + this._skillCount)
             return indexArray;
         }
         
@@ -473,6 +542,14 @@ Ryba.UnitCommand.BaseUseAction = defineObject(UnitListCommand,
 
     _setSkillData:function(unit, skill){
         
+    },
+
+    _getUnitUseCount:function(unit){
+        return 0;
+    },
+
+    _addUnitSkillCount:function(){
+        var unit = this.getCommandTarget();
     }
 }
 );
@@ -531,8 +608,8 @@ Ryba.UnitCommand.SurvivedCommand = defineObject(Ryba.UnitCommand.BaseUseAction,
         var indexArray = [];
 
         var summonUnit = this._summonUnit();
-        
-        if (this._skill === null || unit.isGuest() || summonUnit === null) {
+
+        if (this._skill === null || this._skillCount === 0 || unit.isGuest() || summonUnit === null) {
             return indexArray;
         }
 
@@ -557,7 +634,14 @@ Ryba.UnitCommand.SurvivedCommand = defineObject(Ryba.UnitCommand.BaseUseAction,
         return indexArray;
     },
 
-    //下記はコマンドごとに変えよう
+    _getUnitUseCount:function(unit){
+        return Ryba.SurvivedCounter.getUnitUseCount(unit);
+    },
+
+    _addUnitSkillCount:function(){
+        var unit = this.getCommandTarget();
+        Ryba.SurvivedCounter.addUnitUseCount(unit);
+    },
 
     _setAnime:function(skill){
         var id = skill.custom.easyAnimeId;
@@ -595,6 +679,12 @@ Ryba.UnitCommand.SurvivedCommand = defineObject(Ryba.UnitCommand.BaseUseAction,
     }
 });
 (function() {
+
+    var alias_BattleSetupScene_completeSceneMemberData = BattleSetupScene._completeSceneMemberData;
+    BattleSetupScene._completeSceneMemberData = function(){
+        alias_BattleSetupScene_completeSceneMemberData.call(this);
+        Ryba.SurvivedCounter.clearUnitUseCountAll();
+    };
     //------------------------------------------------------------------------------
     //MapLayer
     MapLayer._resurrectioningPanel = null;
