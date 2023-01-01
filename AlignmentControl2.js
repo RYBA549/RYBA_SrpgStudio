@@ -565,6 +565,15 @@ Ryba.AlignmentActionControl = {
     
         return true;
     },
+    nextAlignment: function(pearent,targetUnit,alignmentList) {
+        var result = this._nextAlignment(targetUnit,alignmentList);
+        if(result !== null){
+            pearent._preAttack = result.preAttack;
+            pearent._lastAttackParam = result.attackParam;
+            return true;
+        }
+        return false;
+    },
     _nextAlignment: function(targetUnit,alignmentList){
         if(alignmentList.length < 1){
             return null;
@@ -614,7 +623,7 @@ UnitCommand.Attack._lastAttackParam = null;
 UnitCommand.Attack._moveAutoAttack = function() {
     if (this._preAttack.movePreAttackCycle() !== MoveResult.CONTINUE) {
         var targetUnit = this._posSelector.getSelectorTarget(false);
-        if(Ryba.AlignmentActionControl._nextAlignment(targetUnit,this._alignmentList)){
+        if(Ryba.AlignmentActionControl.nextAlignment(this,targetUnit,this._alignmentList)){
             return MoveResult.CONTINUE;
         }
         if(this._lastAttackParam){
@@ -742,7 +751,7 @@ WeaponAutoAction._movePreAttack = function() {
 
 WeaponAutoAction._moveAutoAttack = function() {
     if (this._preAttack.movePreAttackCycle() !== MoveResult.CONTINUE) {
-        if(Ryba.AlignmentActionControl._nextAlignment(this._targetUnit,this._alignmentList)){
+        if(Ryba.AlignmentActionControl.nextAlignment(this,this._targetUnit,this._alignmentList)){
             return MoveResult.CONTINUE;
         }
         if(this._lastAttackParam){
