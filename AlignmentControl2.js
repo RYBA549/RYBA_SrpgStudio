@@ -754,6 +754,15 @@ WeaponAutoAction._moveAutoAttack = function() {
     
     return MoveResult.CONTINUE;
 };
+WeaponAutoAction.isSkipAllowed = function() {
+    var mode = this.getCycleMode();
+    
+    if (mode === WeaponAutoActionMode.PREATTACK || mode === AttackCommandMode.AutoAttack) {
+        return false;
+    }
+
+    return true;
+};
 //-----------
 (function() {
     var aliasSetup = SetupControl.setup
