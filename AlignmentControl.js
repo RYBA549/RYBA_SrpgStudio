@@ -683,7 +683,7 @@ AttackChecker.checkCounterattack = function(unit, targetUnit) {
     if(StateControl.isBadStateOption(targetUnit, BadStateOption.NOACTION)){
         return null;
     }
-    var weapon = this._getCounterWeapon(unit,targetUnit);
+    var weapon = ItemControl.getEquippedWeapon(targetUnit);
     if(weapon === null){
         return null;
     }
