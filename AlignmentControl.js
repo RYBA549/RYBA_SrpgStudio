@@ -684,7 +684,10 @@ AttackChecker.checkCounterattack = function(unit, targetUnit) {
         return null;
     }
     var weapon = this._getCounterWeapon(unit,targetUnit);
-    if(AttackChecker.isCounterattackPos(unit, targetUnit, unit.getMapX(), unit.getMapY(), weapon)){
+    if(weapon === null){
+        return null;
+    }
+    if(AttackChecker.isCounterattackPos(unit, targetUnit, unit.getMapX(), unit.getMapY())){
         return weapon;
     }
     return null;
