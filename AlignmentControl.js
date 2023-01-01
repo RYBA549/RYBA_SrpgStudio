@@ -328,11 +328,6 @@ Ryba.AlignmentControl = {
                     obj.maxDistance = maxDis;
                 }
             }
-            if(!obj.isExchange){
-                if(typeof skill.custom.isExchange === 'number'){
-                    obj.isExchange = (skill.custom.isExchange === 1);
-                }
-            }
             if(!obj.isPinching){
                 if(typeof skill.custom.isPinching === 'number'){
                     obj.isPinching = (skill.custom.isPinching === 1);
@@ -597,14 +592,6 @@ UnitCommand.Attack._nextAlignment = function(){
     attackParam.unit = data.unit;
     attackParam.targetUnit = targetUnit
     attackParam.attackStartType = AttackStartType.NORMAL;
-
-    if( data.isExchange ){
-        var selfUnit = this.getCommandTarget();
-        if( FusionExChangeControl.isFusionExChangeOK(selfUnit) ){
-            var child = FusionExChangeControl.Exchange(selfUnit);
-            child.setWait(true);
-        }
-    }
 
     //表示用スキルを登録
     Ryba.AlignmentControl.registerShowSkill(data.unit,data.skill);
