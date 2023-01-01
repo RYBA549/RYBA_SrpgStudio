@@ -680,7 +680,10 @@ UnitCommand.Attack._moveResult = function() {
     return MoveResult.CONTINUE;
 };
 AttackChecker.checkCounterattack = function(unit, targetUnit) {
-    var weapon = ItemControl.getEquippedWeapon(targetUnit);
+    if(StateControl.isBadStateOption(targetUnit, BadStateOption.NOACTION)){
+        return null;
+    }
+    var weapon = this._getCounterWeapon(unit,targetUnit);
     if(AttackChecker.isCounterattackPos(unit, targetUnit, unit.getMapX(), unit.getMapY(), weapon)){
         return weapon;
     }
