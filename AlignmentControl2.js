@@ -282,30 +282,29 @@ Ryba.AlignmentControl = {
     //weaponの引数をnullにした場合、武器条件を無視して判定する
     getAlignmentDataToArray:function(skillArray,keywordArray,weapon){
         var i, data;
+        var dataCount = 0;
         var count = keywordArray.length;
-        var result = null;
+        var result = [];
         for(i = 0; i < count; ++i){
-            data = this.getAlignmentData(skillArray,keywordArray[i],weapon,result);
-            if(data !== null){
-                result = data;
+            data = this.getAlignmentData(skillArray,keywordArray[i],weapon);
+            dataCount = data.length;
+            if(dataCount > 0){
+                result = result.concat(data);
             }
         }
         return result;
     },
     getAlignmentData:function(skillArray,keyword,weapon,obj){
 
+        var result = [];
+
         var skills = Ryba.AlignmentSkillControl.getCustomSkillFromArrayToArray(skillArray, keyword, weapon);
         if(!skills || skills.length < 1){
-            return null;
+            return result;
         }
 
-        if(!obj){
-            obj = this._buildAlignmentData();
-        }
-
-        var i, skill, minDis, maxDis;
+        var i, skill, minDis, maxDis, obj;
         var count = skills.length;
-        var nullFlag = true;
         for( i = 0; i < count; ++i){
             skill = skills[i];
 
@@ -317,7 +316,7 @@ Ryba.AlignmentControl = {
             }
 
             //適応スキルが１つでもあった場合false
-            nullFlag = false;
+            obj = this._buildAlignmentData();
             minDis = skill.custom.minDistance;
             if(typeof minDis === 'number'){
                 if(obj.minDistance < 0 || minDis < obj.minDistance){
@@ -335,13 +334,10 @@ Ryba.AlignmentControl = {
                     obj.isPinching = (skill.custom.isPinching === 1);
                 }
             }
+            result.push(obj);
         }
 
-        if(nullFlag){
-            return null;
-        }
-
-        return obj;
+        return result;
     },
 
     _buildAlignmentData:function(){
@@ -364,16 +360,25 @@ Ryba.AlignmentControl = {
     },
 
     checkData:function(param){
-        if(param.data === null || param.unit === null){
-            return false;
+        var i;
+        var arr = param.data;
+        var count = arr.length;
+
+        for( i = 0; i < count; ++i ){
+            var data = arr[i];
+            if(data === null || param.unit === null){
+                continue;
+            }
+            if(!this.checkDistance(data,param.distance)){
+                continue;
+            }
+            if(!this.checkPinching(data,param.attakcer, param.targetUnit,param.unit)){
+                continue;
+            }
+            return true;
         }
-        if(!this.checkDistance(param.data,param.distance)){
-            return false;
-        }
-        if(!this.checkPinching(param.data,param.attakcer, param.targetUnit,param.unit)){
-            return false;
-        }
-        return true;
+        
+        return false;
     },
 
     checkPinching:function(data,attakcer,targetUnit,unit){
