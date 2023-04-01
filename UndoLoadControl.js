@@ -1,0 +1,810 @@
+/*-----------------------------------------------------------------------------------------------
+    
+　味方ユニットが行動する度(or自軍ターン開始ごと)
+  にセーブを行うタイプのオートセーブ機能を実装します。
+
+  マップコマンド、タイトルコマンドに追加される
+  「最近の記録」からオートセーブ一覧を開くことができます。
+
+  Ryba.UndoLoadCountRecord を true にすると
+　指定した変数に「戦闘マップ中にロードしたセーブデータの数」を記録できます。
+　（記録しているだけです。EDのマップ共通コマンド等でリセットしないと章をまたいでロードした回数が増え続けます）
+　※ロードした回数じゃなくてロードしたセーブデータの数なので注意
+
+■注意点
+
+　このプラグインは巻き戻しではなく、あくまで「オートセーブ機能」です。
+
+■設定項目
+
+Ryba.UndoLoadControlのうちの以下の関数を設定する必要があります
+
+    //実際に使っている通常のセーブデータの数を入力します
+    startUndoSaveCount:function(){
+        return 50;
+    },
+
+    //オートセーブデータを何個まで記録するかの数
+    //※startUndoSaveCountと合わせて99を超えるとバグります
+    maxUndoCount:function(){
+        return 40;
+    },
+
+■対応バージョン
+　SRPG Studio Version:1.279
+
+■作成者：熱帯魚
+
+■規約
+・利用はSRPG Studioを使ったゲームに限ります。
+・商用・非商用問いません。フリーです。
+・加工等、問題ありません。どんどん改造してください。
+・クレジット明記無し　OK
+・再配布、転載　OK
+・SRPG Studio利用規約は遵守してください。
+
+-----------------------------------------------------------------------------------------------*/
+var Ryba = Ryba || {};
+//ロードしたセーブデータの数を記録する変数のテーブル番号を記載します。
+//※タブの番号は「0」、「1」、「2」....となっている点に注意
+Ryba.SaveCountTableId = 0;
+//ロードしたセーブデータの数を記録する変数のIDを記載します。
+Ryba.SaveCountVariableId = 1;
+//ロードしたセーブデータの数を記録するかどうか
+Ryba.UndoLoadCountRecord = false;
+
+//番号的にはRyba.OmakeSaveCount+1番から始まるが
+//root.getLoadSaveManager().saveFileでindexを指定してセーブする時
+Ryba.UndoLoadControl = {
+    //実際に使っている通常のセーブデータの数を入力します
+    startUndoSaveCount:function(){
+        return 50;
+    },
+
+    //オートセーブデータを何個まで記録するかの数
+    //※startUndoSaveCountと合わせて99を超えるとバグります
+    maxUndoCount:function(){
+        return 40;
+    },
+
+    getCommandName:function(){
+        return '最近の記録';
+    },
+
+    reset:function(){
+        delete root.getExternalData().env.undoSaveIndex;
+        var max = this.maxUndoCount();
+		var i,saveFileIndex;
+        for (i = 0; i < max; i++) {
+            saveFileIndex = this.startUndoSaveCount() + i;
+            root.getLoadSaveManager().deleteFile(saveFileIndex);
+        }
+    },
+
+    executeSave:function(param){
+        var index = this.getNextSaveIndex(this.getNowSaveIndex());
+        this.setNowSaveIndex(index);
+        Ryba.SaveExControl.executeNowSave(Ryba.UndoLoadControl.startUndoSaveCount() + index,param);
+    },
+
+    executeLoad:function(data){
+        if(ConfigItem.AutoSaveIndexUpdate.getFlagValue() === AutoSaveIndexType.Update){
+            Ryba.UndoLoadControl.setNowSaveIndex(data.autoIndex);
+        }
+        root.getLoadSaveManager().loadFile(data.saveFileIndex);
+    },
+
+    getNowSaveIndex:function(){
+        if(typeof root.getExternalData().env.undoSaveIndex === 'number'){
+            return root.getExternalData().env.undoSaveIndex;
+        }
+        return this.maxUndoCount()-1;
+    },
+
+    setNowSaveIndex:function(index){
+        root.getExternalData().env.undoSaveIndex = index;
+    },
+
+    getNextSaveIndex:function(index){
+        var result = index + 1;
+        if(result >= this.maxUndoCount()){
+            result = 0;
+        }
+        return result;
+    },
+
+    getSaveFileIndexArray: function(manager) {
+        var result = [];
+        var firstIndex = this.getNextSaveIndex(this.getNowSaveIndex());
+        var maxUndoCount = Ryba.UndoLoadControl.maxUndoCount();
+
+        this._saveFileData(result,manager,firstIndex,maxUndoCount);
+        this._saveFileData(result,manager,0,firstIndex);
+
+        return result;
+    },
+
+    getUndoDataCount:function(){
+        return this.getSaveFileIndexArray(root.getLoadSaveManager()).length;
+    },
+
+    isExistSaveData:function(){
+        return this.getUndoDataCount() > 0;
+    },
+
+    //ロード回数上限かどうか
+    isLoadCountLimit:function(){
+        return this.getUndoDataCount() > 0;
+    },
+
+    _saveFileData:function(array,manager,start,end){
+        var i,data,saveFileIndex;
+        for (i = start; i < end; i++) {
+            saveFileIndex = this.startUndoSaveCount() + i;
+            data = manager.getSaveFileInfo(saveFileIndex);
+            if(data.getMapInfo() === null ){
+                continue;
+            }
+            array.push({
+                data:data,
+                autoIndex:i,
+                saveFileIndex:saveFileIndex
+            });
+        }
+    }
+
+};
+
+//拡張セーブ画面に必要なデータをセーブする機能を持つ
+Ryba.SaveExControl = {
+
+    executeNowSave:function(index,param){
+        //戦闘時のオートセーブのため
+        this.executeSave(index, root.getBaseScene(), root.getCurrentSession().getCurrentMapInfo().getId(),param);
+    },
+
+    addLoadCount:function(sceneType, value){
+        if(!Ryba.UndoLoadCountRecord){
+            return;
+        }
+        if (sceneType === SceneType.FREE || sceneType === SceneType.EVENT) {
+            var table = root.getMetaSession().getVariableTable(Ryba.SaveCountTableId);
+            var variableIndex = table.getVariableIndexFromId(Ryba.SaveCountVariableId);
+            value += table.getVariable(variableIndex);
+            table.setVariable(variableIndex, value);
+        }
+    },
+
+    executeSave:function(index,scene,mapId,param){
+        this.addLoadCount(scene, 1)
+        root.getLoadSaveManager().saveFile(index, scene, mapId, 
+            Ryba.SaveExControl.getCustomObject({
+                scene:scene,
+                mapId:mapId
+            },param));
+        this.addLoadCount(scene, -1);
+    },
+
+    getCustomObject: function(param,autoSaveData) {
+		var obj = LoadSaveScreen._getCustomObject.call(this);
+    
+        var table = root.getMetaSession().getVariableTable(Ryba.SaveCountTableId);
+        var variableIndex = table.getVariableIndexFromId(Ryba.SaveCountVariableId);
+        obj.saveCount = table.getVariable(variableIndex); 
+		
+		this._setLeaderSettings(obj, autoSaveData.unit);
+		this._setPositionSettings(obj, param);
+
+        obj.titleType = autoSaveData.titleType;
+		
+		return obj;
+	},
+
+    getCustomObjectToLeader: function(param) {
+		var obj = {};
+		
+        //var autoSaveData = AutoSavedControl.buildAutoSaveParam();
+		this._setLeaderSettings(obj, this._getLeaderUnit());
+		this._setPositionSettings(obj, param);
+		
+		return obj;
+	},
+
+    _setLeaderSettings: function(obj, unit) {
+		var handle;
+		
+		if (unit == null) {
+			obj.leaderName = 'undefined';
+			return;
+		}
+		
+		obj.leaderName = unit.getName();
+		obj.leaderLv = unit.getLv();
+		
+		handle = unit.getCustomCharChipHandle();
+		if (handle === null) {
+			handle = unit.getCharChipResourceHandle();
+		}
+		obj.binary = serializeResourceHandle(handle);
+	},
+
+    _setPositionSettings: function(obj, param) {
+		var area, mapInfo;
+		
+		obj.playerArrayX = [];
+		obj.playerArrayY = [];
+		obj.enemyArrayX = [];
+		obj.enemyArrayY = [];
+		obj.allyArrayX = [];
+		obj.allyArrayY = [];
+		
+		if (param.scene === SceneType.REST) {
+			area = root.getRestPreference().getActiveRestAreaFromMapId(param.mapId);
+			obj.areaId = area.getId();
+			return obj;
+		}
+		else {
+			mapInfo = root.getCurrentSession().getCurrentMapInfo();
+			if (param.mapId !== mapInfo.getId()) {
+				return obj;
+			}
+		}
+		
+		this._setPositionSettingsInternal(PlayerList.getSortieList(), obj.playerArrayX, obj.playerArrayY);
+		this._setPositionSettingsInternal(EnemyList.getAliveList(), obj.enemyArrayX, obj.enemyArrayY);
+		this._setPositionSettingsInternal(AllyList.getAliveList(), obj.allyArrayX, obj.allyArrayY);
+	},
+	
+	_setPositionSettingsInternal: function(list, arrayX, arrayY) {
+		var i, unit;
+		var count = list.getCount();
+		
+		for (i = 0; i < count; i++) {
+			unit = list.getData(i);
+			if (this._isUnitExcluded(unit)) {
+				continue;
+			}
+			
+			arrayX.push(unit.getMapX());
+			arrayY.push(unit.getMapY());
+		}
+	},
+	
+	_isUnitExcluded: function(unit) {
+		return unit.isInvisible();
+	},
+	
+	_getLeaderUnit: function() {
+		var i, count;
+		var list = PlayerList.getMainList();
+		var unit = null;
+		var firstUnit = null;
+		
+		count = list.getCount();
+		if (count === 0) {
+			return null;
+		}
+		
+		for (i = 0; i < count; i++) {
+			unit = list.getData(i);
+			if (unit.getAliveState() === AliveType.ERASE) {
+				continue;
+			}
+			
+			if (firstUnit === null) {
+				firstUnit = unit;
+			}
+			
+			if (unit.getImportance() === ImportanceType.LEADER) {
+				break;
+			}
+		}
+		
+		if (i === count) {
+			unit = firstUnit;
+		}
+		
+		return unit;
+	}
+};
+
+
+AutoSavedControl = {
+	_endUnit:null,
+
+	trunStartRegister:function(){
+		this.autoSaveTurnStart();
+	},
+
+	buildAutoSaveParam:function(){
+		return {
+			unit:null,
+			titleType:0
+		};
+	},
+
+	//TODD:巻き戻し時のセーブ処理をここに記述すればよい
+	//現状使う想定はないのでコメントアウトしている
+	autoSaveUnitEnd: function() {
+		if(ConfigItem.AutoSaveType.getFlagValue() !== AutoSaveType.Unit){
+			return;
+		}
+		this._baseAutoSave(this.buildAutoSaveParam());
+	},
+
+	autoSaveTurnStart: function() {
+		if(ConfigItem.AutoSaveType.getFlagValue() !== AutoSaveType.Turn){
+			return;
+		}
+		//ターンスタート時のセーブにはユニットを保存する必要がない
+		this._endUnit = null;
+		var param = this.buildAutoSaveParam();
+		param.titleType = AutoSaveTitleType.Turn;
+		this._baseAutoSave(param);
+	},
+
+	_baseAutoSave:function(param){
+		if (GameOverChecker.isGameOver()) {
+			return;
+		}
+		param.unit = this._endUnit;
+		Ryba.UndoLoadControl.executeSave(param);
+		this._endUnit = null;
+	},
+
+	setUnitEndData:function(unit){
+		this._endUnit = unit;
+	}
+};
+
+
+Ryba.UndoLoadScreen = defineObject(BaseScreen,
+{
+    _screenParam: null,
+    _isLoadMode: true,
+    _scrollbar: null,
+    _questionWindow: null,
+    _saveFileDetailWindow: null,
+    _saveIndexArray:[],
+    
+    setScreenData: function(screenParam) {
+        this._prepareScreenMemberData(screenParam);
+        this._completeScreenMemberData(screenParam);
+    },
+    
+    moveScreenCycle: function() {
+        return this._moveLoad();
+    },
+
+    drawScreenCycle: function() {
+        var mode = this.getCycleMode();
+		var width = this._scrollbar.getObjectWidth() + this._saveFileDetailWindow.getWindowWidth();
+		var x = LayoutControl.getCenterX(-1, width);
+		var y = LayoutControl.getCenterY(-1, this._scrollbar.getScrollbarHeight());
+		
+		this._scrollbar.drawScrollbar(x, y);
+		this._saveFileDetailWindow.drawWindow(x + this._scrollbar.getObjectWidth(), y);
+		
+		if (mode === LoadSaveMode.SAVECHECK) {
+			x = LayoutControl.getCenterX(-1, this._questionWindow.getWindowWidth());
+			y = LayoutControl.getCenterY(-1, this._questionWindow.getWindowHeight());
+			this._questionWindow.drawWindow(x, y);
+		}
+	},
+
+    getScreenTitleName: function() {
+		return '最近の記録（一覧）';
+	},
+    
+    getScreenInteropData: function() {        
+        return root.queryScreen('Load');
+    },
+    
+    _prepareScreenMemberData: function(screenParam) {
+        this._screenParam = screenParam;
+        this._isLoadMode = true;//screenParam.isLoad;
+        this._scrollbar = createScrollbarObject(this._getScrollbarObject(), this);
+        this._questionWindow = createWindowObject(QuestionWindow, this);
+    },
+    
+    _completeScreenMemberData: function(screenParam) {
+        var count = LayoutControl.getObjectVisibleCount(76, 5);
+        
+        this._scrollbar.setScrollFormation(this._getFileCol(), count);
+        this._scrollbar.setActive(true);
+        this._setScrollData(DefineControl.getMaxSaveFileCount(), this._isLoadMode);
+        this._setDefaultSaveFileIndex();
+        
+        this._questionWindow.setQuestionMessage(StringTable.LoadSave_SaveQuestion);
+        
+        this._scrollbar.enablePageChange();
+		
+		this._saveFileDetailWindow	= createWindowObject(Ryba.UndoDetailWindow, this);
+		this._saveFileDetailWindow.setSize(Math.floor(this._scrollbar.getScrollbarHeight() * 1.2), this._scrollbar.getScrollbarHeight());
+		
+		this._checkSaveFile();
+
+        this.changeCycleMode(LoadSaveMode.TOP);
+    },
+    
+    _setScrollData: function(count, isLoadMode) {
+        var i;
+        var manager = root.getLoadSaveManager();
+        this._saveIndexArray = Ryba.UndoLoadControl.getSaveFileIndexArray(manager);
+        var maxCount = this._saveIndexArray.length;
+
+        for (i = 0; i < maxCount; i++) {
+            this._scrollbar.objectSet(this._saveIndexArray[i].data);
+        }
+        
+        this._scrollbar.objectSetEnd();
+        
+        this._scrollbar.setLoadMode(isLoadMode);
+    },
+    
+    _setDefaultSaveFileIndex: function() {
+        this._scrollbar.setIndex(this._saveIndexArray.length-1);
+        // var index = root.getExternalData().getActiveSaveFileIndex();
+        // // 以前使用したファイルのインデックスにカーソルを合わせる
+        // if (this._scrollbar.getObjectCount() > index) {
+        //     this._scrollbar.setIndex(index);
+        // }
+    },
+    
+    _moveLoad: function() {
+        var input;
+        var mode = this.getCycleMode();
+        var result = MoveResult.CONTINUE;
+        
+        if (mode === LoadSaveMode.TOP) {
+            input = this._scrollbar.moveInput();
+            if (input === ScrollbarInput.SELECT) {
+                this._executeLoad();
+            }
+            else if (input === ScrollbarInput.CANCEL) {
+                result = MoveResult.END;
+            }
+            else {
+                this._checkSaveFile();
+            }
+        }
+        
+        return result;
+    },
+    
+    _checkSaveFile: function() {
+        if (this._scrollbar.checkAndUpdateIndex()) {
+			this._saveFileDetailWindow.setSaveFileInfo(this._scrollbar.getObject());
+		}
+    },
+    
+    _getScrollbarObject: function() {
+        return LoadSaveScrollbarEx;
+    },
+    
+    _getFileCol: function() {
+        return 1;
+    },
+    
+    _executeLoad: function() {
+        var object = this._scrollbar.getObject();
+        
+        if (object.isCompleteFile() || object.getMapInfo() !== null) {
+            SceneManager.setEffectAllRange(true);
+            
+            // 内部でroot.changeSceneが呼ばれ、セーブファイルに記録されているシーンに変更される。
+            Ryba.UndoLoadControl.executeLoad(this._getAutoSaveData());
+        }
+    },
+
+    _getAutoSaveData:function(){
+        return this._saveIndexArray[this._scrollbar.getIndex()];
+    }
+    
+}
+);
+
+Ryba.UndoDetailWindow = defineObject(SaveFileDetailWindow,
+{
+    _configureSentence: function(groupArray) {
+		if (typeof this._saveFileInfo.custom.leaderName !== 'undefined') {
+			groupArray.appendObject(LoadSaveSentence.ActionUnit);
+		}
+        if(Ryba.UndoLoadCountRecord){
+            groupArray.appendObject(LoadSaveSentence.SaveCount);
+        }
+	}
+});
+
+LoadSaveSentence.ActionUnit = defineObject(LoadSaveSentence.Leader,{
+    drawLoadSaveSentence: function(x, y) {
+		var unitRenderParam;
+		var textui = this._getSentenceTextUI();
+		var color = textui.getColor();
+		var font = textui.getFont();
+		var obj = this._saveFileInfo.custom;
+		var length = 130;
+        var titleX = 70;
+
+        var titleType = 0;
+		if(typeof obj.titleType !== 'undefied'){
+            titleType = obj.titleType;
+        }
+
+		this._drawTitle(x, y);
+		
+		if (typeof obj.binary !== 'undefined') {
+			unitRenderParam = StructureBuilder.buildUnitRenderParam();
+			unitRenderParam.handle = deserializeResourceHandle(obj.binary);
+			unitRenderParam.colorIndex = 0;
+			UnitRenderer.drawCharChip(x + 24, y + 8, unitRenderParam);
+		}
+		
+		if (typeof obj.leaderName !== 'undefined') {
+			length += this._detailWindow.isSentenceLong() ? 20 : 0;
+            
+            if(obj.leaderName === 'undefined'){
+                var text = 'ターン開始データ';
+                TextRenderer.drawKeywordText(x + titleX, y + 18, text, length, color, font);
+            }else{
+                TextRenderer.drawKeywordText(x + titleX, y + 18, obj.leaderName, length, color, font);
+            }
+			
+		}
+		
+		if (typeof obj.leaderLv !== 'undefined') {
+			x += this._detailWindow.isSentenceLong() ? 20 : 0;
+			TextRenderer.drawKeywordText(x + 180, y + 18, '行動後', -1, color, font);
+		}
+	}
+});
+
+
+LoadSaveSentence.SaveCount = defineObject(BaseLoadSaveSentence,
+{
+    _saveFileInfo: 0,
+    
+    setSaveFileInfo: function(saveFileInfo) {
+        this._saveFileInfo = saveFileInfo;
+    },
+    
+    drawLoadSaveSentence: function(x, y) {
+        var n = -1;
+        var textui = this._getSentenceTextUI();
+        var color = textui.getColor();
+        var font = textui.getFont();
+        var obj = this._saveFileInfo.custom;
+        //var difficulty = this._saveFileInfo.getDifficulty();
+        
+        this._drawTitle(x, y);
+        
+        if(typeof obj.saveCount === 'number'){
+            n = obj.saveCount - 1;
+        }
+
+        if( n > -1){
+            TextRenderer.drawKeywordText(x + 70, y + 18, 'ロードデータ数：', -1, color, font);
+            this.drawNumber(x + 180,y,n);
+        }else{
+            TextRenderer.drawKeywordText(x + 70, y + 18, 'ロードデータ数： -- ', -1, color, font);
+        }
+    },
+
+    drawNumber:function(x,y,n){
+        var dx = 0;
+        if (n >= 100) {
+            dx = 0;
+        }
+        else if (n >= 10) {
+            dx = 20;
+        }
+        else {
+            dx = 40;
+        }
+        NumberRenderer.drawAttackNumberColor(x + dx, y + 18, n, 1, 255);
+    }
+}
+);
+TitleCommand.UndoLoad = defineObject(BaseTitleCommand,
+{
+    _screen: null,
+
+    openCommand: function() {
+        var screenParam = this._createLoadSaveParam();
+        
+        this._screen = createObject(Ryba.UndoLoadScreen);
+        SceneManager.addScreen(this._screen, screenParam);
+    },
+    
+    moveCommand: function() {
+        if (SceneManager.isScreenClosed(this._screen)) {
+            return MoveResult.END;
+        }
+        
+        return MoveResult.CONTINUE;
+    },
+    
+    isSelectable: function() {
+        return Ryba.UndoLoadControl.isExistSaveData();
+    },
+
+    getCommandName: function() {
+		return Ryba.UndoLoadControl.getCommandName();
+	},
+    
+    _createLoadSaveParam: function() {
+        var screenParam = ScreenBuilder.buildLoadSave();
+        
+        return screenParam;
+    }
+}
+);
+SetupCommand.UndoLoad = defineObject(BaseListCommand, 
+{
+    _screen: null,
+    
+    openCommand: function() {
+        var screenParam = this._createScreenParam();
+    
+        this._screen = createObject(Ryba.UndoLoadScreen);
+        SceneManager.addScreen(this._screen, screenParam);
+    },
+    
+    moveCommand: function() {
+        if (SceneManager.isScreenClosed(this._screen)) {
+            return MoveResult.END;
+        }
+        
+        return MoveResult.CONTINUE;
+    },
+    
+    _createScreenParam: function() {
+        var screenParam = ScreenBuilder.buildUnitSortie();
+        
+        return screenParam;
+    },
+
+    getCommandName: function() {
+        return Ryba.UndoLoadControl.getCommandName();
+    },
+
+    isCommandDisplayable: function() {
+        return Ryba.UndoLoadControl.isExistSaveData();
+    }
+}
+);
+
+AutoSaveType = {
+    None:0,
+    Turn:1,
+    Unit:2
+};
+
+AutoSaveIndexType = {
+    Update:0,
+    None:1
+};
+
+Ryba.LongConfigTextScrollbar = defineObject(ConfigTextScrollbar,
+{	
+    getObjectWidth: function() {
+        return 80 + HorizontalLayout.OBJECT_SPACE;
+    }
+}
+);
+
+ConfigItem.AutoSaveType = defineObject(BaseConfigtItem,
+{
+
+    setupConfigItem: function() {
+		this._scrollbar = createScrollbarObject(Ryba.LongConfigTextScrollbar, this);
+		this._scrollbar.setScrollFormation(this.getFlagCount(), 1);
+		this._scrollbar.setObjectArray(this.getObjectArray());
+	},
+
+    selectFlag: function(index) {
+        root.getExternalData().env.autoSaveType = index;
+    },
+    
+    getFlagValue: function() {
+        if (typeof root.getExternalData().env.autoSaveType !== 'number') {
+            return AutoSaveType.Unit;
+        }
+    
+        return root.getExternalData().env.autoSaveType;
+    },
+    
+    getFlagCount: function() {
+        return 3;
+    },
+    
+    getConfigItemTitle: function() {
+        return 'オートセーブ設定'
+    },
+    
+    getConfigItemDescription: function() {
+        //root.log(root.getExternalData().env.autoSaveType);
+        return 'オートセーブのタイミングを設定します';
+    },
+
+    getObjectArray: function() {
+        return [ 'なし', 'ターン',  'ユニット' ];
+    }
+});
+
+ConfigItem.AutoSaveIndexUpdate = defineObject(BaseConfigtItem,
+{
+    selectFlag: function(index) {
+        root.getExternalData().env.autoSaveIndexUpdate = index;
+    },
+    
+    getFlagValue: function() {
+        if (typeof root.getExternalData().env.autoSaveIndexUpdate !== 'number') {
+            return AutoSaveIndexType.Update;
+        }
+    
+        return root.getExternalData().env.autoSaveIndexUpdate;
+    },
+    
+    getFlagCount: function() {
+        return 2;
+    },
+    
+    getConfigItemTitle: function() {
+        return 'オートセーブ最新読込';
+    },
+    
+    getConfigItemDescription: function() {
+        //root.log(root.getExternalData().env.autoSaveIndexUpdate);
+        return 'オンにするとオートセーブをロードしたファイルが最新に';
+    }
+});
+    
+
+(function() {
+    var alias1 = ConfigWindow._configureConfigItem;
+    ConfigWindow._configureConfigItem = function(groupArray) {
+        //ツール側
+        alias1.call(this,groupArray);
+        groupArray.appendObject(ConfigItem.AutoSaveType);
+        groupArray.appendObject(ConfigItem.AutoSaveIndexUpdate);
+    };
+    var alias2 = TitleScene._configureTitleItem;
+    TitleScene._configureTitleItem = function(groupArray) {
+        alias2.call(this, groupArray);
+        
+        groupArray.insertObject(TitleCommand.UndoLoad, 2);
+    };
+    var alias3 = PlayerTurn.openTurnCycle;
+	PlayerTurn.openTurnCycle = function() {
+		alias3.call(this);
+		//両方呼ばないとならない
+		//実際には自動セーブは１回しか処理されない
+		AutoSavedControl.trunStartRegister();
+		AutoSavedControl.autoSaveUnitEnd();
+	};
+
+    var alias4 = MapCommand.configureCommands;
+    MapCommand.configureCommands = function(groupArray) {
+        alias4.call(this, groupArray);
+        groupArray.insertObject(SetupCommand.UndoLoad, 1);
+    };
+
+    PlayerTurn._moveUnitCommand = function() {
+		var result = this._mapSequenceCommand.moveSequence();
+		
+		if (result === MapSequenceCommandResult.COMPLETE) {
+			this._mapSequenceCommand.resetCommandManager();
+			MapLayer.getMarkingPanel().updateMarkingPanelFromUnit(this._targetUnit);
+			this._changeEventMode();
+            AutoSavedControl.setUnitEndData(this._targetUnit);
+            AutoSavedControl.autoSaveUnitEnd();
+		}
+		else if (result === MapSequenceCommandResult.CANCEL) {
+			this._mapSequenceCommand.resetCommandManager();
+			this.changeCycleMode(PlayerTurnMode.MAP);
+		}
+		
+		return MoveResult.CONTINUE;
+	};
+})();
