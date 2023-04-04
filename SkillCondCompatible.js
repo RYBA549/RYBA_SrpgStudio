@@ -82,22 +82,20 @@ Ryba.SkillCond = {
     getCompatibleValue:function(active,passive,weapon){
 
         var result = 0;
-        if(this.TargetType === SkillCondCompatibleType.Pow){
-            result = CompatibleCalculator.getPower(active, passive, weapon);
-        }else if(this.TargetType === SkillCondCompatibleType.Pow){
+	if(this.TargetType === SkillCondCompatibleType.Pow){
             result = CompatibleCalculator.getPower(active, passive, weapon);
         }else if(this.TargetType === SkillCondCompatibleType.Def){
-            result = CompatibleCalculator.getPower(active, passive, weapon);
+            result = CompatibleCalculator.getDefense(active, passive, weapon);
         }else if(this.TargetType === SkillCondCompatibleType.Hit){
-            result = CompatibleCalculator.getPower(active, passive, weapon);
+            result = CompatibleCalculator.getHit(active, passive, weapon);
         }else if(this.TargetType === SkillCondCompatibleType.Avoid){
-            result = CompatibleCalculator.getPower(active, passive, weapon);
+            result = CompatibleCalculator.getAvoid(active, passive, weapon);
         }else if(this.TargetType === SkillCondCompatibleType.Critical){
-            result = CompatibleCalculator.getPower(active, passive, weapon);
+            result = CompatibleCalculator.getCritical(active, passive, weapon);
         }else if(this.TargetType === SkillCondCompatibleType.CriticalAvoid){
-            result = CompatibleCalculator.getPower(active, passive, weapon);
+            result = CompatibleCalculator.getCriticalAvoid(active, passive, weapon);
         }else if(this.TargetType === SkillCondCompatibleType.Agility){
-            result = CompatibleCalculator.getPower(active, passive, weapon);
+            result = CompatibleCalculator.getAgility(active, passive, weapon);
         }
         return result;
     },
