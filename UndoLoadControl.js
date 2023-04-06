@@ -77,7 +77,7 @@ Ryba.UndoLoadCountRecord = false;
 //trueにするとロードできる回数などが指定できます
 //(ツール側にデフォルトであるマップセーブがオフにしないとプレイヤーが簡単に不正出来てしまう欠点があります)
 //trueにするとタイトルからは選べなくなります（マップ攻略中のみ選択可能に）
-Ryba.RewindSystem = true;
+Ryba.RewindSystem = false;
 //巻き戻せる回数
 Ryba.RewindMaxCount = 10;
 //巻き戻し回数を保存する変数を設定
