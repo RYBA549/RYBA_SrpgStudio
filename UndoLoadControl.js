@@ -11,6 +11,23 @@
 　（記録しているだけです。EDのマップ共通コマンド等でリセットしないと章をまたいでロードした回数が増え続けます）
 　※ロードした回数じゃなくてロードしたセーブデータの数なので注意
 
+　追記(2023/04/06)：
+　ロードできる回数を指定し、それ以上はオートセーブデータをロードできなくできる設定を追加しました。
+　より巻き戻しに近くできるような設定です。
+　Ryba.RewindSystem を trueにすると
+  タイトルから選べなくなる代わりにそのマップ中に巻き戻した回数がゲーム中に記録されるようになります。
+  巻き戻せる回数も指定できます
+　Ryba.RewindMaxCount = 10;
+ 
+　ただし、「ツールのデフォルトのセーブコマンドはマップ中は非表示にする必要があります」
+  非表示にしなくても機能しますが、オートセーブで再現している都合上、
+  プレイヤーが簡単に回数をズル出来てしまいます）
+  
+  セーブを非表示にする方法：
+  ツール上部の
+  「ゲームレイアウト」→「コマンドレイアウト」でウィンドウを開き
+  「マップコマンド」から「セーブ」を「非表示」にします。
+
 ■注意点
 
 　このプラグインは巻き戻しではなく、あくまで「オートセーブ機能」です。
@@ -45,6 +62,7 @@ Ryba.UndoLoadControlのうちの以下の関数を設定する必要がありま
 
 -----------------------------------------------------------------------------------------------*/
 var Ryba = Ryba || {};
+//-----------------------------------------------------------------------------------------------
 //ロードしたセーブデータの数を記録する変数のテーブル番号を記載します。
 //※タブの番号は「0」、「1」、「2」....となっている点に注意
 Ryba.SaveCountTableId = 0;
@@ -52,6 +70,23 @@ Ryba.SaveCountTableId = 0;
 Ryba.SaveCountVariableId = 1;
 //ロードしたセーブデータの数を記録するかどうか
 Ryba.UndoLoadCountRecord = false;
+//-----------------------------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------------------------
+//巻き戻し機能化するかどうか
+//trueにするとロードできる回数などが指定できます
+//(ツール側にデフォルトであるマップセーブがオフにしないとプレイヤーが簡単に不正出来てしまう欠点があります)
+//trueにするとタイトルからは選べなくなります（マップ攻略中のみ選択可能に）
+Ryba.RewindSystem = true;
+//巻き戻せる回数
+Ryba.RewindMaxCount = 10;
+//巻き戻し回数を保存する変数を設定
+//これは「ロードしたセーブデータの数を記録する」変数とは別の物にする必要があります
+//※タブの番号は「0」、「1」、「2」....となっている点に注意
+Ryba.RewindCountTableId = 0;
+//変数のIDを記載します。
+Ryba.RewindCountVariableId = 2;
+//-----------------------------------------------------------------------------------------------
 
 //番号的にはRyba.OmakeSaveCount+1番から始まるが
 //root.getLoadSaveManager().saveFileでindexを指定してセーブする時
@@ -91,7 +126,14 @@ Ryba.UndoLoadControl = {
         if(ConfigItem.AutoSaveIndexUpdate.getFlagValue() === AutoSaveIndexType.Update){
             Ryba.UndoLoadControl.setNowSaveIndex(data.autoIndex);
         }
+        var beforeValue;
+        if(Ryba.RewindSystem){
+            beforeValue = Ryba.CommonControl.getToolVariable( Ryba.RewindCountTableId,Ryba.RewindCountVariableId);
+        }
         root.getLoadSaveManager().loadFile(data.saveFileIndex);
+        if(Ryba.RewindSystem){
+            Ryba.CommonControl.setToolVariable( Ryba.RewindCountTableId,Ryba.RewindCountVariableId, beforeValue + 1);
+        }
     },
 
     getNowSaveIndex:function(){
@@ -155,6 +197,27 @@ Ryba.UndoLoadControl = {
 
 };
 
+//汎用処理
+Ryba.CommonControl = {
+    //ツールの変数に数値を設定する関数
+    //Ryba.UndoLoadControl.addToolVariable(tableId,valueId,value){
+    setToolVariable:function(tableId,valueId,value){
+        var table = root.getMetaSession().getVariableTable(tableId);
+        var variableIndex = table.getVariableIndexFromId(valueId);
+        table.setVariable(variableIndex, value);
+    },
+    getToolVariable:function(tableId,valueId){
+        var table = root.getMetaSession().getVariableTable(tableId);
+        var variableIndex = table.getVariableIndexFromId(valueId);
+        return table.getVariable(variableIndex);
+    },
+    addToolVariable:function(tableId,valueId,add){
+        var value = this.getToolVariable(tableId, valueId);
+        value += add;
+        this.setToolVariable(tableId, valueId, value);
+    }
+};
+
 //拡張セーブ画面に必要なデータをセーブする機能を持つ
 Ryba.SaveExControl = {
 
@@ -168,10 +231,7 @@ Ryba.SaveExControl = {
             return;
         }
         if (sceneType === SceneType.FREE || sceneType === SceneType.EVENT) {
-            var table = root.getMetaSession().getVariableTable(Ryba.SaveCountTableId);
-            var variableIndex = table.getVariableIndexFromId(Ryba.SaveCountVariableId);
-            value += table.getVariable(variableIndex);
-            table.setVariable(variableIndex, value);
+            Ryba.CommonControl.addToolVariable(Ryba.SaveCountTableId,Ryba.SaveCountVariableId,value);
         }
     },
 
@@ -188,9 +248,7 @@ Ryba.SaveExControl = {
     getCustomObject: function(param,autoSaveData) {
 		var obj = LoadSaveScreen._getCustomObject.call(this);
     
-        var table = root.getMetaSession().getVariableTable(Ryba.SaveCountTableId);
-        var variableIndex = table.getVariableIndexFromId(Ryba.SaveCountVariableId);
-        obj.saveCount = table.getVariable(variableIndex); 
+        obj.saveCount = Ryba.CommonControl.getToolVariable(Ryba.SaveCountTableId,Ryba.SaveCountVariableId);
 		
 		this._setLeaderSettings(obj, autoSaveData.unit);
 		this._setPositionSettings(obj, param);
@@ -513,6 +571,9 @@ Ryba.UndoDetailWindow = defineObject(SaveFileDetailWindow,
         if(Ryba.UndoLoadCountRecord){
             groupArray.appendObject(LoadSaveSentence.SaveCount);
         }
+        if(Ryba.RewindSystem){
+            groupArray.appendObject(LoadSaveSentence.RewindCount);
+        }
 	}
 });
 
@@ -605,6 +666,34 @@ LoadSaveSentence.SaveCount = defineObject(BaseLoadSaveSentence,
     }
 }
 );
+
+LoadSaveSentence.RewindCount = defineObject(LoadSaveSentence.SaveCount,
+{
+    _saveFileInfo: 0,
+    
+    drawLoadSaveSentence: function(x, y) {
+        var n = -1;
+        var textui = this._getSentenceTextUI();
+        var color = textui.getColor();
+        var font = textui.getFont();
+        var obj = this._saveFileInfo.custom;
+        //var difficulty = this._saveFileInfo.getDifficulty();
+        
+        this._drawTitle(x, y);
+        
+        n = Ryba.RewindMaxCount - Ryba.CommonControl.getToolVariable(Ryba.RewindCountTableId,Ryba.RewindCountVariableId);
+
+        if( n > -1){
+            TextRenderer.drawKeywordText(x + 70, y + 18, '残り使用回数：', -1, color, font);
+            this.drawNumber(x + 180,y,n);
+        }else{
+            TextRenderer.drawKeywordText(x + 70, y + 18, '残り使用回数： -- ', -1, color, font);
+        }
+    }
+}
+);
+
+
 TitleCommand.UndoLoad = defineObject(BaseTitleCommand,
 {
     _screen: null,
@@ -669,6 +758,9 @@ SetupCommand.UndoLoad = defineObject(BaseListCommand,
     },
 
     isCommandDisplayable: function() {
+        if(Ryba.CommonControl.getToolVariable( Ryba.RewindCountTableId,Ryba.RewindCountVariableId) >= Ryba.RewindMaxCount){
+            return false;
+        }
         return Ryba.UndoLoadControl.isExistSaveData();
     }
 }
@@ -772,8 +864,10 @@ ConfigItem.AutoSaveIndexUpdate = defineObject(BaseConfigtItem,
     var alias2 = TitleScene._configureTitleItem;
     TitleScene._configureTitleItem = function(groupArray) {
         alias2.call(this, groupArray);
-        
-        groupArray.insertObject(TitleCommand.UndoLoad, 2);
+        //巻き戻し化している場合はタイトルから選べるのはマズイ
+        if(!Ryba.RewindSystem){
+            groupArray.insertObject(TitleCommand.UndoLoad, 2);
+        }
     };
     var alias3 = PlayerTurn.openTurnCycle;
 	PlayerTurn.openTurnCycle = function() {
@@ -789,6 +883,29 @@ ConfigItem.AutoSaveIndexUpdate = defineObject(BaseConfigtItem,
         alias4.call(this, groupArray);
         groupArray.insertObject(SetupCommand.UndoLoad, 1);
     };
+
+
+    //------------------------------------------------------------------------------------------------
+    //マップ共通イベントED前よりも前に呼ばれる処理を作成する
+    //（当然マップのエンディングイベントよりも前に呼ばれる）
+    //この処理が呼ばれるタイミングを変更したい場合、
+    //EventCheckerの関数はコメントアウトして
+    //ツール上で、マップ共通コマンドで巻き戻し回数を記録している変数を０にしてください
+    EventChecker._eventType = 0;
+    EventChecker._eventEndingBefore = function() {
+        if(Ryba.RewindSystem){
+            Ryba.CommonControl.setToolVariable( Ryba.RewindCountTableId,Ryba.RewindCountVariableId, 0);
+        }
+    };
+    var alias_enterEventChecker = EventChecker.enterEventChecker;
+    EventChecker.enterEventChecker = function(eventList, eventType) {
+        this._eventType = eventType;
+        if(this._eventType === EventType.ENDING){
+            this._eventEndingBefore();
+        }
+        return alias_enterEventChecker.call(this,eventList,eventType);
+    };
+    //------------------------------------------------------------------------------------------------
 
     PlayerTurn._moveUnitCommand = function() {
 		var result = this._mapSequenceCommand.moveSequence();
