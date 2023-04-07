@@ -758,9 +758,12 @@ SetupCommand.UndoLoad = defineObject(BaseListCommand,
     },
 
     isCommandDisplayable: function() {
-        if(Ryba.CommonControl.getToolVariable( Ryba.RewindCountTableId,Ryba.RewindCountVariableId) >= Ryba.RewindMaxCount){
-            return false;
-        }
+	if(Ryba.RewindSystem){
+	    if(Ryba.CommonControl.getToolVariable( Ryba.RewindCountTableId,Ryba.RewindCountVariableId) >= Ryba.RewindMaxCount){
+                return false;
+            }
+	}
+
         return Ryba.UndoLoadControl.isExistSaveData();
     }
 }
