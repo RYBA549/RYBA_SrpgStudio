@@ -915,20 +915,61 @@ ConfigItem.AutoSaveIndexUpdate = defineObject(BaseConfigtItem,
         return alias_enterEventChecker.call(this,eventList,eventType);
     };
     //------------------------------------------------------------------------------------------------
+    PlayerTurn._unitEndAutoCheck = false;
+    PlayerTurn._moveAutoEventCheck = function() {
+		if (this._eventChecker.moveEventChecker() !== MoveResult.CONTINUE) {
+			this._doEventEndAction();
+			MapLayer.getMarkingPanel().updateMarkingPanel();
+            if(this._unitEndAutoCheck){
+                this._unitEndAutoCheck = false;
+                AutoSavedControl.setUnitEndData(this._targetUnit);
+                AutoSavedControl.autoSaveUnitEnd();
+                //root.log('_moveAutoEventCheck' + this._targetUnit.getName());
+            }
+			this.changeCycleMode(PlayerTurnMode.MAP);
+		}
+		
+		return MoveResult.CONTINUE;
+	};
 
+    PlayerTurn._moveUnitCommand = function() {
+		var result = this._mapSequenceCommand.moveSequence();
+		
+		if (result === MapSequenceCommandResult.COMPLETE) {
+			this._mapSequenceCommand.resetCommandManager();
+			MapLayer.getMarkingPanel().updateMarkingPanelFromUnit(this._targetUnit);
+			this._changeEventModeNeo(true);
+		}
+		else if (result === MapSequenceCommandResult.CANCEL) {
+			this._mapSequenceCommand.resetCommandManager();
+			this.changeCycleMode(PlayerTurnMode.MAP);
+		}
+		
+		return MoveResult.CONTINUE;
+	};
     
     PlayerTurn._changeEventMode = function() {
-		var result;
-		
+		this._changeEventModeNeo(false);
+	};
+
+    PlayerTurn._changeEventModeNeo= function(unitEnd) {
+        var result;
+		this._unitEndAutoCheck = false;
 		result = this._eventChecker.enterEventChecker(root.getCurrentSession().getAutoEventList(), EventType.AUTO);
 		if (result === EnterResult.NOTENTER) {
 			this._doEventEndAction();
-            AutoSavedControl.setUnitEndData(this._targetUnit);
-			AutoSavedControl.autoSaveUnitEnd();
+            if(unitEnd){
+                AutoSavedControl.setUnitEndData(this._targetUnit);
+                AutoSavedControl.autoSaveUnitEnd();
+                //root.log('_changeEventModeNeo' + this._targetUnit.getName());
+            }
 			this.changeCycleMode(PlayerTurnMode.MAP);
 		}
 		else {
+            if(unitEnd){
+                this._unitEndAutoCheck = true;
+            }
 			this.changeCycleMode(PlayerTurnMode.AUTOEVENTCHECK);
 		}
-	};
+    };
 })();
