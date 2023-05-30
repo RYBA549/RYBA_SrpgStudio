@@ -48,8 +48,8 @@ Ryba.UndoLoadControlのうちの以下の関数を設定する必要がありま
     },
 
 ■対応バージョン
-　SRPG Studio Version:1.279
-
+　旧：SRPG Studio Version:1.279
+　新：SRPG Studio Version:1.282（新ではセーブの_getCustomObjectを変更している場合、不具合が出る可能性があります）
 ■作成者：熱帯魚
 
 ■規約
@@ -77,7 +77,7 @@ Ryba.UndoLoadCountRecord = false;
 //trueにするとロードできる回数などが指定できます
 //(ツール側にデフォルトであるマップセーブがオフにしないとプレイヤーが簡単に不正出来てしまう欠点があります)
 //trueにするとタイトルからは選べなくなります（マップ攻略中のみ選択可能に）
-Ryba.RewindSystem = false;
+Ryba.RewindSystem = true;
 //巻き戻せる回数
 Ryba.RewindMaxCount = 10;
 //巻き戻し回数を保存する変数を設定
@@ -246,8 +246,14 @@ Ryba.SaveExControl = {
     },
 
     getCustomObject: function(param,autoSaveData) {
-		var obj = LoadSaveScreen._getCustomObject.call(this);
-    
+
+        //TODO:a
+        //ver1.280から構造が変わったため修正
+        //セーブのカスタムオブジェクトを変更している場合、
+        //このobj変数もからではなく同じように変更しなければならない
+		//var obj = LoadSaveScreen._getCustomObject.call(this);
+        var obj = {};
+
         obj.saveCount = Ryba.CommonControl.getToolVariable(Ryba.SaveCountTableId,Ryba.SaveCountVariableId);
 		
 		this._setLeaderSettings(obj, autoSaveData.unit);
@@ -910,21 +916,19 @@ ConfigItem.AutoSaveIndexUpdate = defineObject(BaseConfigtItem,
     };
     //------------------------------------------------------------------------------------------------
 
-    PlayerTurn._moveUnitCommand = function() {
-		var result = this._mapSequenceCommand.moveSequence();
+    
+    PlayerTurn._changeEventMode = function() {
+		var result;
 		
-		if (result === MapSequenceCommandResult.COMPLETE) {
-			this._mapSequenceCommand.resetCommandManager();
-			MapLayer.getMarkingPanel().updateMarkingPanelFromUnit(this._targetUnit);
-			this._changeEventMode();
+		result = this._eventChecker.enterEventChecker(root.getCurrentSession().getAutoEventList(), EventType.AUTO);
+		if (result === EnterResult.NOTENTER) {
+			this._doEventEndAction();
             AutoSavedControl.setUnitEndData(this._targetUnit);
-            AutoSavedControl.autoSaveUnitEnd();
-		}
-		else if (result === MapSequenceCommandResult.CANCEL) {
-			this._mapSequenceCommand.resetCommandManager();
+			AutoSavedControl.autoSaveUnitEnd();
 			this.changeCycleMode(PlayerTurnMode.MAP);
 		}
-		
-		return MoveResult.CONTINUE;
+		else {
+			this.changeCycleMode(PlayerTurnMode.AUTOEVENTCHECK);
+		}
 	};
 })();
