@@ -112,9 +112,355 @@
 ・再配布、転載　OK
 ・SRPG Studio利用規約は遵守してください。
 
+■更新履歴
+　2023/09/15 プラグイン1の修正を行っていたかったのでこちらにも適応
+
 -----------------------------------------------------------------------------------------------*/
 var Ryba = Ryba || {};
-Ryba.AlignmentSkillControl = null;
+
+Ryba.AlignmentSkillControl = {
+	checkAndPushSkill: function(active, passive, attackEntry, isActive, skilltype) {
+		var skill = this.getPossessionSkill(active, skilltype);
+		
+		if (SkillRandomizer.isSkillInvoked(active, passive, skill)) {
+			// スキルに「発動時に表示する」が設定されているか調べる
+			if (skill.isSkillDisplayable()) {
+				// 表示する場合は、描画時にスキルを参照できるように保存する
+				if (isActive) {
+					attackEntry.skillArrayActive.push(skill);
+				}
+				else {
+					attackEntry.skillArrayPassive.push(skill);
+				}
+			}
+			return skill;
+		}
+		
+		return null;
+	},
+	
+	checkAndPushCustomSkill: function(active, passive, attackEntry, isActive, keyword) {
+		var skill = this.getPossessionCustomSkill(active, keyword);
+		
+		if (SkillRandomizer.isCustomSkillInvoked(active, passive, skill, keyword)) {
+			if (skill.isSkillDisplayable()) {
+				if (isActive) {
+					attackEntry.skillArrayActive.push(skill);
+				}
+				else {
+					attackEntry.skillArrayPassive.push(skill);
+				}
+			}
+			return skill;
+		}
+		
+		return null;
+	},
+	
+	getBattleSkill: function(active, passive, skilltype) {
+		var arr = this.getDirectSkillArray(active, skilltype, '');
+		var skill = this._returnSkill(skilltype, arr);
+		
+		return this._getBattleSkillInternal(active, passive, skill);
+	},
+	
+	getBattleSkillFromFlag: function(active, passive, skilltype, flag) {
+		var i, count, skill;
+		var arr = this.getDirectSkillArray(active, skilltype, '');
+		
+		count = arr.length;
+		for (i = 0; i < count; i++) {
+			if (arr[i].skill.getSkillType() === skilltype && arr[i].skill.getSkillValue() & flag) {
+				skill = this._getBattleSkillInternal(active, passive, arr[i].skill);
+				if (skill !== null) {
+					return skill;
+				}
+			}
+		}
+		
+		return null;
+	},
+	
+	getBattleSkillFromValue: function(active, passive, skilltype, value) {
+		var i, count, skill;
+		var arr = this.getDirectSkillArray(active, skilltype, '');
+		
+		count = arr.length;
+		for (i = 0; i < count; i++) {
+			if (arr[i].skill.getSkillType() === skilltype && arr[i].skill.getSkillValue() === value) {
+				skill = this._getBattleSkillInternal(active, passive, arr[i].skill);
+				if (skill !== null) {
+					return skill;
+				}
+			}
+		}
+		
+		return null;
+	},
+	
+	// unitがskilltypeのスキルを所持しているか調べる。
+	// 戻り値は、所持しているスキル。
+	getPossessionSkill: function(unit, skilltype) {
+		var arr = this.getDirectSkillArray(unit, skilltype, '');
+		
+		return this._returnSkill(skilltype, arr);
+	},
+	
+	// 最も数値が大きいスキルを返す
+	getBestPossessionSkill: function(unit, skilltype) {
+		var i, count;
+		var arr = this.getDirectSkillArray(unit, skilltype, '');
+		var max = -1000;
+		var index = -1;
+		
+		count = arr.length;
+		for (i = 0; i < count; i++) {
+			if (arr[i].skill.getSkillType() === skilltype && arr[i].skill.getSkillValue() > max) {
+				max = arr[i].skill.getSkillValue();
+				index = i;
+			}
+		}
+		
+		if (index === -1) {
+			return null;
+		}
+		
+		return arr[index].skill;
+	},
+	
+	getPossessionCustomSkill: function(unit, keyword) {
+		var arr = this.getDirectSkillArray(unit, SkillType.CUSTOM, keyword);
+		
+		return this._returnSkill(SkillType.CUSTOM, arr);
+	},
+	
+	getDirectSkillArray: function(unit, skilltype, keyword) {
+		if (unit === null) {
+			return [];
+		}
+		
+		return this.getSkillMixArray(unit, ItemControl.getEquippedWeapon(unit), skilltype, keyword);
+	},
+	
+	// skilltypeが-1の場合は、unitに関連する全てのスキルが対象になる
+	getSkillMixArray: function(unit, weapon, skilltype, keyword) {
+		var objectFlag = ObjectFlag.UNIT | ObjectFlag.CLASS | ObjectFlag.WEAPON | ObjectFlag.ITEM | ObjectFlag.STATE | ObjectFlag.TERRAIN | ObjectFlag.FUSION;
+		
+		return this.getSkillObjectArray(unit, weapon, skilltype, keyword, objectFlag);
+	},
+	
+	getSkillObjectArray: function(unit, weapon, skilltype, keyword, objectFlag) {
+		var arr = [];
+		
+		if (unit === null) {
+			return arr;
+		}
+		
+		this._pushObjectSkill(unit, weapon, arr, skilltype, keyword, objectFlag);
+		
+		return this._getValidSkillArray(arr);
+	},
+	
+	_getBattleSkillInternal: function(active, passive, skill) {
+		if (skill === null) {
+			return null;
+		}
+	
+		// 「有効相手」として許可されない
+		if (passive !== null && !skill.getTargetAggregation().isCondition(passive)) {
+			return null;
+		}
+		
+		return skill;
+	},
+	
+	_pushObjectSkill: function(unit, weapon, arr, skilltype, keyword, objectFlag) {
+		var i, item, list, count, terrain, child;
+		var checkerArray = [];
+		var cls = unit.getClass();
+		
+		if (objectFlag & ObjectFlag.UNIT) {
+			// ユニットのスキルを追加する
+			this._pushSkillValue(unit, ObjectType.UNIT, arr, skilltype, keyword);
+		}
+		
+		if (objectFlag & ObjectFlag.CLASS) {
+			// ユニットが属するクラスのスキルを追加する
+			this._pushSkillValue(cls, ObjectType.CLASS, arr, skilltype, keyword);
+		}
+		
+		if (objectFlag & ObjectFlag.WEAPON) {
+			if (weapon !== null) {
+				// 武器のスキルを追加する
+				this._pushSkillValue(weapon, ObjectType.WEAPON, arr, skilltype, keyword);
+			}
+		}
+		
+		if (objectFlag & ObjectFlag.ITEM) {
+			count = UnitItemControl.getPossessionItemCount(unit);
+			for (i = 0; i < count; i++) {
+				item = UnitItemControl.getItem(unit, i);
+				if (!ItemIdentityChecker.isItemReused(checkerArray, item)) {
+					continue;
+				}
+				
+				if (item !== null && ItemControl.isItemUsable(unit, item)) {
+					// アイテムを使用できる場合は、スキルを追加する
+					this._pushSkillValue(item, ObjectType.ITEM, arr, skilltype, keyword);
+				}
+			}
+		}
+		
+		if (objectFlag & ObjectFlag.STATE) {
+			// ユニットにかかっているステートのスキルを追加する
+			list = unit.getTurnStateList();
+			count = list.getCount();
+			for (i = 0; i < count; i++) {
+				this._pushSkillValue(list.getData(i).getState(), ObjectType.STATE, arr, skilltype, keyword);
+			}
+		}
+		
+		if (objectFlag & ObjectFlag.TERRAIN) {
+			terrain = PosChecker.getTerrainFromPos(unit.getMapX(), unit.getMapY());
+			if (terrain !== null) {
+				this._pushSkillValue(terrain, ObjectType.TERRAIN, arr, skilltype, keyword);
+			}
+		}
+		
+		if (objectFlag & ObjectFlag.FUSION) {
+			child = FusionControl.getFusionChild(unit);
+			if (child !== null) {
+				objectFlag = FusionControl.getFusionData(unit).getSkillIncludedObjectFlag();
+				this._pushObjectSkillFromFusion(child, ItemControl.getEquippedWeapon(child), arr, skilltype, keyword, objectFlag);
+			}
+		}
+	},
+	
+	_pushObjectSkillFromFusion: function(unit, weapon, arr, skilltype, keyword, objectFlag) {
+		var i, item, list, count;
+		var checkerArray = [];
+		var cls = unit.getClass();
+		
+		// 全ての_pushSkillValueにはObjectType.FUSIONが指定される
+		
+		if (objectFlag & ObjectFlag.UNIT) {
+			this._pushSkillValue(unit, ObjectType.FUSION, arr, skilltype, keyword);
+		}
+		
+		if (objectFlag & ObjectFlag.CLASS) {
+			this._pushSkillValue(cls, ObjectType.FUSION, arr, skilltype, keyword);
+		}
+		
+		if (objectFlag & ObjectFlag.WEAPON) {
+			if (weapon !== null) {
+				this._pushSkillValue(weapon, ObjectType.FUSION, arr, skilltype, keyword);
+			}
+		}
+		
+		if (objectFlag & ObjectFlag.ITEM) {
+			count = UnitItemControl.getPossessionItemCount(unit);
+			for (i = 0; i < count; i++) {
+				item = UnitItemControl.getItem(unit, i);
+				if (!ItemIdentityChecker.isItemReused(checkerArray, item)) {
+					continue;
+				}
+				
+				if (item !== null && ItemControl.isItemUsable(unit, item)) {
+					this._pushSkillValue(item, ObjectType.FUSION, arr, skilltype, keyword);
+				}
+			}
+		}
+		
+		if (objectFlag & ObjectFlag.STATE) {
+			list = unit.getTurnStateList();
+			count = list.getCount();
+			for (i = 0; i < count; i++) {
+				this._pushSkillValue(list.getData(i).getState(), ObjectType.FUSION, arr, skilltype, keyword);
+			}
+		}
+	},
+	
+	_pushSkillValue: function(data, objecttype, arr, skilltype, keyword) {
+        var i, skill, skillEntry, isBuild;
+        var list = data.getSkillReferenceList();
+        var count = list.getTypeCount();
+        
+        // スキルリストからtypeで識別されるスキルを探す。
+        // 見つかった場合は、そのスキルの値をarrに保存する。
+        for (i = 0; i < count; i++) {
+            skill = list.getTypeData(i);
+            
+            isBuild = false;
+            if (skilltype === -1) {
+                isBuild = true;
+            }
+            else if (skill.getSkillType() === skilltype) {
+                isBuild = true;
+            }
+            
+            if (isBuild) {
+                skillEntry = StructureBuilder.buildMixSkillEntry();
+                skillEntry.objecttype = objecttype;
+                skillEntry.skill = skill;
+                arr.push(skillEntry);
+            }
+        }
+    },
+	
+	_returnSkill: function(skilltype, arr) {
+		var i;
+		var count = arr.length;
+		var max = -1000;
+		var index = -1;
+		
+		// arrの中からskilltypeと一致スキルを探す。
+		// 同種スキルが複数存在する場合は、発動率が高いスキルを優先する
+		for (i = 0; i < count; i++) {
+			if (arr[i].skill.getSkillType() === skilltype && arr[i].skill.getInvocationValue() > max) {
+				max = arr[i].skill.getInvocationValue();
+				index = i;
+			}
+		}
+		
+		if (index === -1) {
+			return null;
+		}
+		
+		return arr[index].skill;
+	},
+	
+	_getValidSkillArray: function(arr) {
+		var i;
+		var count = arr.length;
+		var usedAry = [];
+		
+		for (i = 0; i < count; i++) {
+			// 既に追加されているスキルは、再び追加してはならない
+			if (this._isUsed(usedAry, arr[i])) {
+				continue;
+			}
+			
+			usedAry.push(arr[i]);
+		}
+		
+		return usedAry;
+	},
+	
+	_isUsed: function(arr, obj) {
+		var i;
+		var count = arr.length;
+		
+		for (i = 0; i < count; i++) {
+			if (arr[i].skill.getId() === obj.skill.getId()) {
+				return true;
+			}
+		}
+		
+		return false;
+	}
+};
+
+
 Ryba.AlignmentControl = {
     //----------------------------------------------------------------------------------------
     //調整項目
@@ -145,34 +491,6 @@ Ryba.AlignmentControl = {
         }
         var list = root.getBaseData().getSkillList();
         this._defaultShowSkill = list.getDataFromId(this.DefaultSkillNumber);
-    
-        Ryba.AlignmentSkillControl = SkillControl;
-        Ryba.AlignmentSkillControl._pushSkillValue = function(data, objecttype, arr, skilltype, keyword) {
-            var i, skill, skillEntry, isBuild;
-            var list = data.getSkillReferenceList();
-            var count = list.getTypeCount();
-            
-            // スキルリストからtypeで識別されるスキルを探す。
-            // 見つかった場合は、そのスキルの値をarrに保存する。
-            for (i = 0; i < count; i++) {
-                skill = list.getTypeData(i);
-                
-                isBuild = false;
-                if (skilltype === -1) {
-                    isBuild = true;
-                }
-                else if (skill.getSkillType() === skilltype) {
-                    isBuild = true;
-                }
-                
-                if (isBuild) {
-                    skillEntry = StructureBuilder.buildMixSkillEntry();
-                    skillEntry.objecttype = objecttype;
-                    skillEntry.skill = skill;
-                    arr.push(skillEntry);
-                }
-            }
-        };
         Ryba.AlignmentSkillControl.getCustomSkillArray = function(unit) {
             return this.getDirectSkillArray(unit, SkillType.CUSTOM, '');
         };
@@ -193,7 +511,6 @@ Ryba.AlignmentControl = {
             }
             return resultArray;
         };
-    
     },
 
     findNoCounterState:function(unit){
