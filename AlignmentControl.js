@@ -112,7 +112,18 @@
 
 -----------------------------------------------------------------------------------------------*/
 var Ryba = Ryba || {};
-//参照を切るのが面倒なのでSkillControlのほぼコピペ
+//設定項目------------------------------------------------------------------
+/*
+ *
+ * このIDのグローバルスイッチがオンだと
+ * （環境でリアル戦闘をオンにしていても）
+ * 連携攻撃時のみ、戦闘アニメは強制的に簡易戦闘になる
+ * -1以下を指定するとこの機能は無効になる
+ */
+Ryba.AlignmentEasyBattleSwitchId = -1;
+//--------------------------------------------------------------------------
+
+AttackStartType.Alignment = 1001;
 Ryba.AlignmentSkillControl = {
 	checkAndPushSkill: function(active, passive, attackEntry, isActive, skilltype) {
 		var skill = this.getPossessionSkill(active, skilltype);
@@ -910,7 +921,7 @@ UnitCommand.Attack._nextAlignment = function(){
     var attackParam = StructureBuilder.buildAttackParam();
     attackParam.unit = data.unit;
     attackParam.targetUnit = targetUnit
-    attackParam.attackStartType = AttackStartType.NORMAL;
+    attackParam.attackStartType = AttackStartType.Alignment;
 
     //表示用スキルを登録
     Ryba.AlignmentControl.registerShowSkill(data.unit,data.skill);
@@ -1011,6 +1022,46 @@ AttackChecker.checkCounterattack = function(unit, targetUnit) {
     }
     return null;
 };
+//連携攻撃演出関連
+Ryba.AlignmentAttackInfoBuilder = defineObject(NormalAttackInfoBuilder,
+{
+    createAttackInfo: function(attackParam) {
+        //基本的にNormalAttackInfoBuilderと同じ処理とする
+        var attackInfo = NormalAttackInfoBuilder.createAttackInfo.call(this, attackParam);
+
+        if(Ryba.AlignmentEasyBattleSwitchId > -1){
+            var switchTable = root.getMetaSession().getGlobalSwitchTable();
+            var switchIndex = switchTable.getSwitchIndexFromId(Ryba.AlignmentEasyBattleSwitchId);
+            var flag = switchTable.isSwitchOn(switchIndex);
+            if(flag){
+                attackInfo.battleType = BattleType.FORCEEASY;
+            }
+        }
+        
+        return attackInfo;
+    }
+}
+);
+CoreAttack._checkAttack = function() {
+    if (this._attackParam.attackStartType === AttackStartType.NORMAL) {
+        this._startNormalAttack();
+    }
+    else if (this._attackParam.attackStartType === AttackStartType.FORCE) {
+        this._startForceAttack();
+    }
+    else if (this._attackParam.attackStartType === AttackStartType.Alignment) {
+        this._startAlignmentAttack();
+    }
+};
+CoreAttack._startAlignmentAttack = function() {
+    var infoBuilder = createObject(Ryba.AlignmentAttackInfoBuilder);
+    var orderBuilder = createObject(NormalAttackOrderBuilder);
+    var attackInfo = infoBuilder.createAttackInfo(this._attackParam);
+    var attackOrder = orderBuilder.createAttackOrder(attackInfo);
+    
+    return this._startCommonAttack(attackInfo, attackOrder);
+};
+
 (function() {
     var aliasSetup = SetupControl.setup
     SetupControl.setup = function() {
