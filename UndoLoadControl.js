@@ -48,8 +48,9 @@ Ryba.UndoLoadControlのうちの以下の関数を設定する必要がありま
     },
 
 ■対応バージョン
-　旧：SRPG Studio Version:1.279
-　新：SRPG Studio Version:1.282（新ではセーブの_getCustomObjectを変更している場合、不具合が出る可能性があります）
+　2023/04/01版：SRPG Studio Version:1.279
+　2023/04/06版：SRPG Studio Version:1.282（セーブの_getCustomObjectを変更している場合、不具合が出る可能性があります）
+　2023/12/27版：SRPG Studio Version:1.288（たぶん1.282以上なら大丈夫だと思います）
 ■作成者：熱帯魚
 
 ■規約
