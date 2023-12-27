@@ -87,7 +87,11 @@ Ryba.RewindCountTableId = 0;
 //変数のIDを記載します。
 Ryba.RewindCountVariableId = 2;
 //-----------------------------------------------------------------------------------------------
-
+AutoSaveTitleType = {
+	None:0,
+	Turn:1,
+	Section:2
+};
 //番号的にはRyba.OmakeSaveCount+1番から始まるが
 //root.getLoadSaveManager().saveFileでindexを指定してセーブする時
 Ryba.UndoLoadControl = {
