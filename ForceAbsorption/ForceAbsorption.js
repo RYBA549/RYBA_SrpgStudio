@@ -110,7 +110,7 @@ RYBA.StateControl = {
         var skillEntry, stateList;
         var skillList = SkillControl.getDirectSkillArray(unit, SkillType.CUSTOM, skillKeyword);
         if( skillList === null ){
-            return;
+            return null;
         }
         var skillCount = skillList.length;
         for(var j = 0; j < skillCount; ++j) {
