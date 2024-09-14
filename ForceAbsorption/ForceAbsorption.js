@@ -230,9 +230,7 @@ RYBA.MapSequenceCommand.AddState = defineObject(BaseFlowEntry,
 	},
 	
 	moveFlowEntry: function() {
-        root.log('_dynamicAnime = ');
 		if (this._dynamicAnime.moveDynamicAnime() !== MoveResult.CONTINUE) {
-            root.log('_stateAnime = ');
             if(!this._stateAnime()){
                 return MoveResult.END;
             }
