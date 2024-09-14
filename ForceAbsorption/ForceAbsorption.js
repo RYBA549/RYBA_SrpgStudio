@@ -27,17 +27,41 @@ If set to false, it grants a state if you fail to defeat the enemy.
 If not set, the state will be added after the fight.
 
 update
-20/08/20@create
+20/08/20?@create
+24/09/14 Added map animation and bug fixes
 Version
-@SRPG Studio Version:1.216
+?@SRPG Studio Version:1.216
 URL
 https://github.com/RYBA549/RYBA_SrpgStudio
-MIT License Copyright (c) 2020 RYBA(熱帯魚)
+MIT License Copyright (c) 2020 RYBA(�M�ы�)
   
 --------------------------------------------------------------------------*/
 var RYBA = RYBA || {};
-RYBA.ForceAbsorptionKeyword = 'ForceAbsorption'
+RYBA.ForceAbsorptionKeyword = 'ForceAbsorption';
+RYBA.ForceAbsorptionStateAnimeType = {
+    None:0,
+    Single:1,
+    All:2
+};
+//
 RYBA.StateControl = {
+    //------------------------------------------------------------------------------
+    /** 
+     * 
+     * Parameter settings
+     * 
+     * None
+     * No map animation display
+     * 
+     * Single
+     * Even if multiple states are granted by meeting the conditions, only one of them will be displayed.
+     * 
+     * All
+     * All map animations of the states to be granted will be displayed in order.
+    */
+    ShowAnimeType:RYBA.ForceAbsorptionStateAnimeType.Single,
+
+    //------------------------------------------------------------------------------
     isSkillEnemyKill: function(unit,skill){
         if( skill.custom.enemyKill !== undefined){
             if( this.isEnemyDeathFinish(unit) === skill.custom.enemyKill ){
@@ -78,13 +102,12 @@ RYBA.StateControl = {
         var state = this.getDataFromIdState(id);
         return StateControl.arrangeState(unit, state, IncreaseType.DECREASE);
     },
-    checkState:function(unit, skillKeyword, isSkipMode, generator){
-        var commandCount = this._checkStateBase(unit, unit, skillKeyword, isSkipMode, generator);
-        return commandCount;
+    checkState:function(unit, skillKeyword){
+        return this._checkStateBase(unit, unit, skillKeyword);
     },
-    _checkStateBase:function(unit, target, skillKeyword, isSkipMode, generator){
-        var commandCount = 0;
-        var skillEntry;
+    _checkStateBase:function(unit, target, skillKeyword){
+        var result = [];
+        var skillEntry, stateList;
         var skillList = SkillControl.getDirectSkillArray(unit, SkillType.CUSTOM, skillKeyword);
         if( skillList === null ){
             return;
@@ -101,27 +124,32 @@ RYBA.StateControl = {
                     continue;
                 }
             }
-            
-            commandCount += this._updateUnitFunction(target, skillEntry.skill, isSkipMode, generator);
+
+            stateList = this._updateUnitFunction(target, skillEntry.skill);
+            if(stateList === null){
+                continue;
+            }
+
+            result = result.concat(stateList);
         }
-        return commandCount;
+        return result;
     },
-    _updateUnitFunction:function(unit, skill, isSkipMode ,generator){
-        var commandCount = 0;
+    _updateUnitFunction:function(unit, skill){
         if( skill === null )
         {
-            return 0;
+            return null;
         }
         var add = skill.custom.TurnStart_AddState;
-        commandCount = this.unitAddState(unit,add,isSkipMode,generator);
-        return commandCount;
+        return this.unitAddState(unit,add);
     },
-    unitAddState:function(unit, addObject, isSkipMode ,generator){
+    unitAddState:function(unit, addObject){
+        var addState;
+        var addStateList = [];
         var commandCount = 0;
         var add = addObject;
         if(typeof add !== 'object')
         {
-            return 0;
+            return null;
         }
         var stateBaseList = root.getBaseData().getStateList();
         var length = add.length;
@@ -129,27 +157,30 @@ RYBA.StateControl = {
         {
             var obj = add[j];
             var stateLength = obj['State'].length;
-            if(this._levelUpAddState(unit, obj, stateBaseList, isSkipMode ,generator)){
+            addState = this._levelUpAddState(unit, obj, stateBaseList);
+            if(addState !== null){
                 commandCount += 1;
+                addStateList.push(addState);
                 continue;
             }
-            commandCount += this._unitStateChange(unit,obj,stateLength,stateBaseList, isSkipMode ,generator);
+            this._unitStateChange(unit, obj, stateLength, stateBaseList, addStateList);
         }
-        return commandCount;
+        return addStateList;
     },
-    _unitStateChange:function(unit, obj,stateLength,stateBaseList, isSkipMode ,generator) {
-        var commandCount = 0;
+    _unitStateChange:function(unit, obj, stateLength, stateBaseList, addStateList) {
         for(var h=0 ; h<stateLength ; h++)
         {
             var state = stateBaseList.getDataFromId(obj['State'][h]);
+            if(state === null){
+                continue;
+            }
+            addStateList.push(state);
             StateControl.arrangeState(unit, state, IncreaseType.INCREASE);
         }
-        return commandCount;
     },
-    _levelUpAddState:function(unit, obj, stateBaseList, isSkipMode ,generator){
-        var commandCount = 0;
+    _levelUpAddState:function(unit, obj, stateBaseList){
         if(!obj.levelUp){
-            return false;
+            return null;
         }
         var i = 0;
         var stateLength = obj['State'].length;
@@ -167,7 +198,7 @@ RYBA.StateControl = {
                     this.removeDataFromidState(unit, stateId);
                     index = stateLength - 1;
                 }else{
-                    return true;
+                    return null;
                 }
             }else{
                 this.removeDataFromidState(unit, stateId);
@@ -179,7 +210,7 @@ RYBA.StateControl = {
         
         var state = stateBaseList.getDataFromId(obj['State'][index]);
         StateControl.arrangeState(unit, state, IncreaseType.INCREASE);
-        return true;
+        return state;
     }
 }
 
@@ -188,6 +219,10 @@ RYBA.MapSequenceCommand.AddState = defineObject(BaseFlowEntry,
 {
 	_targetUnit: null,
 	_skill: null,
+    _dynamicAnime: null,
+    _stateList: null,
+    _animeIndex: 0,
+    _animeMax: 0,
 	
 	enterFlowEntry: function(playerTurn) {
 		this._prepareMemberData(playerTurn);
@@ -195,28 +230,91 @@ RYBA.MapSequenceCommand.AddState = defineObject(BaseFlowEntry,
 	},
 	
 	moveFlowEntry: function() {
-		if( this._slideAction.moveCycle() === MoveResult.END){
-			return MoveResult.END;
+        root.log('_dynamicAnime = ');
+		if (this._dynamicAnime.moveDynamicAnime() !== MoveResult.CONTINUE) {
+            root.log('_stateAnime = ');
+            if(!this._stateAnime()){
+                return MoveResult.END;
+            }
 		}
 		return MoveResult.CONTINUE;	
 	},
 
 	drawFlowEntry: function() {
-		
+		this._dynamicAnime.drawDynamicAnime();
 	},
 	
 	_prepareMemberData: function(playerTurn) {
 		this._targetUnit = playerTurn.getTurnTargetUnit();
 		this._dynamicEvent = createObject(DynamicEvent);
+        this._dynamicAnime = createObject(DynamicAnime);
 	},
 	
 	_completeMemberData: function(playerTurn) {
 		var isSkipMode = CurrentMap.isTurnSkipMode();
-		var generator = this._dynamicEvent.acquireEventGenerator();
-		RYBA.StateControl.checkState(this._targetUnit,RYBA.ForceAbsorptionKeyword, isSkipMode, generator);
+		//var generator = this._dynamicEvent.acquireEventGenerator();
+        
+		this._stateList = RYBA.StateControl.checkState(this._targetUnit,RYBA.ForceAbsorptionKeyword);
         RYBA.StateControl.clearEnemyDeathFinish(this._targetUnit);
-        return EnterResult.NOTENTER;
-	}
+        
+        //root.log('this._animeMax = ' + this._animeMax);
+        if(this._stateList === null  || isSkipMode){
+            return EnterResult.NOTENTER;
+        }
+        this._animeMax = this._stateList.length;
+        if( this._animeMax === 0){
+            return EnterResult.NOTENTER;
+        }
+
+        //root.log('RYBA.StateControl.ShowAnimeType = ' + RYBA.StateControl.ShowAnimeType);
+
+        if(RYBA.StateControl.ShowAnimeType ===  RYBA.ForceAbsorptionStateAnimeType.None){
+            return EnterResult.NOTENTER;
+        }else if(RYBA.StateControl.ShowAnimeType === RYBA.ForceAbsorptionStateAnimeType.All){
+            this._animeIndex = 0;
+        }else{
+            this._animeIndex = this._nextAnimeIndex(0);
+            if(this._animeIndex < 0){
+                this._animeIndex = this._animeMax;
+            }
+        }
+        
+        this._stateAnime();
+
+        return EnterResult.OK;
+	},
+
+    _stateAnime:function(){
+        if(this._animeIndex >= this._animeMax){
+            return false;
+        }
+        var index = this._nextAnimeIndex(this._animeIndex);
+        if(index < 0){
+            return false;
+        }
+        //root.queryAnime('reaction')
+        var anime = this._stateList[index].getEasyAnime();
+        var x = LayoutControl.getPixelX(this._targetUnit.getMapX());
+		var y = LayoutControl.getPixelY(this._targetUnit.getMapY());
+        var pos = LayoutControl.getMapAnimationPos(x, y, anime);
+        this._dynamicAnime.startDynamicAnime(anime, pos.x, pos.y, anime);
+        this._animeIndex++;
+        return true;
+        
+    },
+
+    _nextAnimeIndex:function(nowIndex){
+        var i, anime;
+        var len = this._stateList.length;
+        for( i = nowIndex; i < len; i++){
+            anime = this._stateList[i].getEasyAnime();
+            if(anime === null){
+                continue;
+            }
+            return i;
+        }
+        return -1;
+    }
 });
 
 (function() {
