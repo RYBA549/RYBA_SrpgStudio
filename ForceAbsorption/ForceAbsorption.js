@@ -60,6 +60,7 @@ Valid only with LightningStorm. Specify the number of activations in one turn. S
 update
 20/08/20?@create
 24/09/14 Added map animation and bug fixes
+24/09/21 States can now be applied at the start of a turn and when attacked by an enemy. Also added re-action function
 Version
 ?@SRPG Studio Version:1.301
 URL
