@@ -863,6 +863,7 @@ RYBA.TurnStartAddStateFlowEntry = defineObject(BaseFlowEntry,
     TurnChangeStart.pushFlowEntries = function(straightFlow){
         alias4.call(this,straightFlow);
         straightFlow.pushFlowEntry(RYBA.TurnChangeStart.UpdateFlowEntry);
+        straightFlow.pushFlowEntry(RYBA.TurnStartAddStateFlowEntry);
     };
 
     var alias5 = ReactionFlowEntry._completeMemberData;
@@ -902,6 +903,6 @@ RYBA.TurnStartAddStateFlowEntry = defineObject(BaseFlowEntry,
     var alias6 = TurnChangeStart.pushFlowEntries;
     TurnChangeStart.pushFlowEntries = function(straightFlow){
         alias6.call(this,straightFlow);
-        straightFlow.pushFlowEntry(RYBA.TurnStartAddStateFlowEntry);
+        
     };
 })();
