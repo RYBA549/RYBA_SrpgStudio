@@ -899,18 +899,9 @@ RYBA.TurnStartAddStateFlowEntry = defineObject(BaseFlowEntry,
 	};
 
     //
+    var alias6 = TurnChangeStart.pushFlowEntries;
     TurnChangeStart.pushFlowEntries = function(straightFlow){
-        // ターン表示を先行させる
-        if (this._isTurnAnimeEnabled()) {
-            straightFlow.pushFlowEntry(TurnAnimeFlowEntry);
-        }
-        else {
-            straightFlow.pushFlowEntry(TurnMarkFlowEntry);
-        }
-        straightFlow.pushFlowEntry(RecoveryAllFlowEntry);
-        straightFlow.pushFlowEntry(MetamorphozeCancelFlowEntry);
-        straightFlow.pushFlowEntry(BerserkFlowEntry);
-        straightFlow.pushFlowEntry(StateTurnFlowEntry);
+        alias6.call(this,straightFlow);
         straightFlow.pushFlowEntry(RYBA.TurnStartAddStateFlowEntry);
     };
 })();
