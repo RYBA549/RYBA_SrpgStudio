@@ -15,6 +15,9 @@ RYBA.DurabilityControl = {
     },
 
     unitResetDurability:function(unit){
+	if( unit == null ){
+            return;
+        }
         var i, item;
         var count = UnitItemControl.getPossessionItemCount(unit);
         
