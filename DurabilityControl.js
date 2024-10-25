@@ -49,7 +49,7 @@ RYBA.DurabilityControl = {
 };
 
 /**
- * 最後にスクリプトの実行のコード実行で以下のコードを実行する事でも回復できます。
+ * スクリプトの実行のコード実行で以下のコードを実行する事でも回復できます。
  * RYBA.DurabilityControl.stockAllItemResetDurability();
  * RYBA.DurabilityControl.playerUnitAllResetDurability();
  */
