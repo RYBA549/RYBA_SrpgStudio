@@ -7,6 +7,9 @@ var RYBA = RYBA || {};
 RYBA.DurabilityControl = {
 
     resetDurability:function(item){
+        if( item == null ){
+            return;
+        }
         var max = item.getLimitMax();
         item.setLimit(max);
     },
@@ -17,9 +20,6 @@ RYBA.DurabilityControl = {
         
         for (i = 0; i < count; i++) {
             item = UnitItemControl.getItem(unit, i);
-            if( item == null ){
-                continue;
-            }
             this.resetDurability(item);
         }
     },
