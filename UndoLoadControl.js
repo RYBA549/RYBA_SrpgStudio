@@ -282,7 +282,9 @@ Ryba.SaveExControl = {
 		this._setPositionSettings(obj, param);
 
         obj.titleType = autoSaveData.titleType;
-		obj.UnSeenMapAnyMapDataObject = CurrentMap.createAnyMapDataObject();
+        if(CurrentMap.createAnyMapDataObject !== undefined){
+            obj.UnSeenMapAnyMapDataObject = CurrentMap.createAnyMapDataObject();
+        }
 		return obj;
 	},
 
