@@ -154,7 +154,9 @@ Ryba.UndoLoadControl = {
 		// ロードファイルに独自データがあれば読み込む
 		if( typeof unSeenMapAnyMapDataObject !== 'undefined' ) {
 			this.UnSeenMapAnyMapDataObject = unSeenMapAnyMapDataObject;
-		}
+		}else{
+            this.UnSeenMapAnyMapDataObject = null;
+        }
     },
 
     getNowSaveIndex:function(){
