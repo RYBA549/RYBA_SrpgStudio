@@ -51,6 +51,7 @@ Ryba.UndoLoadControlのうちの以下の関数を設定する必要がありま
 　2023/04/01版：SRPG Studio Version:1.279
 　2023/04/06版：SRPG Studio Version:1.282（セーブの_getCustomObjectを変更している場合、不具合が出る可能性があります）
 　2023/12/27版：SRPG Studio Version:1.288（たぶん1.282以上なら大丈夫だと思います）
+  2025/01/13版：SRPG Studio Version:1.307
 ■作成者：熱帯魚
 
 ■規約
@@ -96,6 +97,14 @@ AutoSaveTitleType = {
 //番号的にはRyba.OmakeSaveCount+1番から始まるが
 //root.getLoadSaveManager().saveFileでindexを指定してセーブする時
 Ryba.UndoLoadControl = {
+    _isActivatedFromSaveFile:false,
+    UnSeenMapAnyMapDataObject:null,
+    isActivatedFromSaveFile:function(){
+        return this._isActivatedFromSaveFile;
+    },
+    offActivatedFromSaveFile:function(){
+        this._isActivatedFromSaveFile = false;
+    },
     //実際に使っている通常のセーブデータの数を入力します
     startUndoSaveCount:function(){
         return 50;
@@ -128,6 +137,8 @@ Ryba.UndoLoadControl = {
     },
 
     executeLoad:function(data){
+        root.log('おーとろーど')
+        this._isActivatedFromSaveFile = true;
         if(ConfigItem.AutoSaveIndexUpdate.getFlagValue() === AutoSaveIndexType.Update){
             Ryba.UndoLoadControl.setNowSaveIndex(data.autoIndex);
         }
@@ -139,6 +150,12 @@ Ryba.UndoLoadControl = {
         if(Ryba.RewindSystem){
             Ryba.CommonControl.setToolVariable( Ryba.RewindCountTableId,Ryba.RewindCountVariableId, beforeValue + 1);
         }
+
+        var unSeenMapAnyMapDataObject = data.data.custom.UnSeenMapAnyMapDataObject;
+		// ロードファイルに独自データがあれば読み込む
+		if( typeof unSeenMapAnyMapDataObject !== 'undefined' ) {
+			this.UnSeenMapAnyMapDataObject = unSeenMapAnyMapDataObject;
+		}
     },
 
     getNowSaveIndex:function(){
@@ -256,7 +273,7 @@ Ryba.SaveExControl = {
         //ver1.280から構造が変わったため修正
         //セーブのカスタムオブジェクトを変更している場合、
         //このobj変数もからではなく同じように変更しなければならない
-		//var obj = LoadSaveScreen._getCustomObject.call(this);
+	//var obj = LoadSaveScreen._getCustomObject.call(this);
         var obj = {};
 
         obj.saveCount = Ryba.CommonControl.getToolVariable(Ryba.SaveCountTableId,Ryba.SaveCountVariableId);
@@ -265,7 +282,7 @@ Ryba.SaveExControl = {
 		this._setPositionSettings(obj, param);
 
         obj.titleType = autoSaveData.titleType;
-		
+		obj.UnSeenMapAnyMapDataObject = CurrentMap.createAnyMapDataObject();
 		return obj;
 	},
 
@@ -977,4 +994,26 @@ ConfigItem.AutoSaveIndexUpdate = defineObject(BaseConfigtItem,
 			this.changeCycleMode(PlayerTurnMode.AUTOEVENTCHECK);
 		}
     };
+
+    //最近の記録をロードした際にセーブファイルのロードと同等の挙動に変更する
+    //isActivatedFromSaveFileは他の箇所でも使用されているが
+    //オートセーブは性質上Freeでしか使用しないためこの関数のみ修正
+    FreeAreaScene._completeSceneMemberData= function() {
+        var isLoad = root.getSceneController().isActivatedFromSaveFile();
+        if( Ryba.UndoLoadControl.isActivatedFromSaveFile() ) {
+            Ryba.UndoLoadControl.offActivatedFromSaveFile();
+            if(!isLoad){
+                isLoad = true;
+            }
+        }
+		// セーブファイルのロードによってこの画面が表示される場合、ターン開始の処理を省く。
+		if (isLoad) {
+			this._initializeNewMap();
+			this._playTurnMusic();
+			this._processMode(FreeAreaMode.MAIN);
+		}
+		else {
+			this._processMode(FreeAreaMode.TURNSTART);
+		}
+	};
 })();
