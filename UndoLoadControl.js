@@ -138,6 +138,13 @@ Ryba.UndoLoadControl = {
 
     executeLoad:function(data){
         this._isActivatedFromSaveFile = true;
+        var unSeenMapAnyMapDataObject = data.data.custom.UnSeenMapAnyMapDataObject;
+		// ロードファイルに独自データがあれば読み込む
+		if( typeof unSeenMapAnyMapDataObject !== 'undefined' ) {
+			this.UnSeenMapAnyMapDataObject = unSeenMapAnyMapDataObject;
+		}else{
+            this.UnSeenMapAnyMapDataObject = null;
+        }
         if(ConfigItem.AutoSaveIndexUpdate.getFlagValue() === AutoSaveIndexType.Update){
             Ryba.UndoLoadControl.setNowSaveIndex(data.autoIndex);
         }
@@ -148,14 +155,6 @@ Ryba.UndoLoadControl = {
         root.getLoadSaveManager().loadFile(data.saveFileIndex);
         if(Ryba.RewindSystem){
             Ryba.CommonControl.setToolVariable( Ryba.RewindCountTableId,Ryba.RewindCountVariableId, beforeValue + 1);
-        }
-
-        var unSeenMapAnyMapDataObject = data.data.custom.UnSeenMapAnyMapDataObject;
-		// ロードファイルに独自データがあれば読み込む
-		if( typeof unSeenMapAnyMapDataObject !== 'undefined' ) {
-			this.UnSeenMapAnyMapDataObject = unSeenMapAnyMapDataObject;
-		}else{
-            this.UnSeenMapAnyMapDataObject = null;
         }
     },
 
