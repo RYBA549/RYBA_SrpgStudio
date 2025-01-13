@@ -137,7 +137,6 @@ Ryba.UndoLoadControl = {
     },
 
     executeLoad:function(data){
-        root.log('おーとろーど')
         this._isActivatedFromSaveFile = true;
         if(ConfigItem.AutoSaveIndexUpdate.getFlagValue() === AutoSaveIndexType.Update){
             Ryba.UndoLoadControl.setNowSaveIndex(data.autoIndex);
