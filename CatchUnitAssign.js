@@ -47,7 +47,7 @@ RYBA.FusionAttackIdList = [
 RYBA.CatchUnitAssign = defineObject(BaseFlowEntry,
 {
     _dynamicEvent: null,
-    _IdListlen: 0,
+    _idListlen: 0,
 	
 	enterFlowEntry: function(battleResultScene) {
 		this._prepareMemberData(battleResultScene);
@@ -55,11 +55,7 @@ RYBA.CatchUnitAssign = defineObject(BaseFlowEntry,
 	},
 	
 	moveFlowEntry: function() {
-        var result = this._dynamicEvent.moveDynamicEvent();
-        if(result === MoveResult.END){
-            return MoveResult.END;
-        }
-        return MoveResult.CONTINUE;
+        return this._dynamicEvent.moveDynamicEvent();
 	},
 	
 	_prepareMemberData: function(battleResultScene) {
@@ -72,7 +68,7 @@ RYBA.CatchUnitAssign = defineObject(BaseFlowEntry,
         playerList = PlayerList.getAliveList();
         var count = playerList.getCount();
         var eventOn = false;
-        this._IdListlen = RYBA.FusionAttackIdList.length;
+        this._idListlen = RYBA.FusionAttackIdList.length;
 
         for(var i = 0; i < count; i++){
             active = playerList.getData(i);
@@ -97,8 +93,8 @@ RYBA.CatchUnitAssign = defineObject(BaseFlowEntry,
     },
 
     _fusionDataMatch:function(fusionData){
-        for(var i = 0; i < this._IdListlen; i++){
-            if(fusionData.getId() === this._IdListlen[i]){
+        for(var i = 0; i < this._idListlen; i++){
+            if(fusionData.getId() === RYBA.FusionAttackIdList[i]){
                 return true;
             }
         }
