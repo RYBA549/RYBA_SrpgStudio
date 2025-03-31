@@ -65,7 +65,7 @@ RYBA.CatchUnitAssign = defineObject(BaseFlowEntry,
     _completeMemberData: function(battleResultScene) {
         var active, passive, unitType, fusionData;
         var generator = this._dynamicEvent.acquireEventGenerator();
-        playerList = PlayerList.getAliveList();
+        var playerList = PlayerList.getAliveList();
         var count = playerList.getCount();
         var eventOn = false;
         this._idListlen = RYBA.FusionAttackIdList.length;
