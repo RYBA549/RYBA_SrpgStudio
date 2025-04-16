@@ -44,7 +44,7 @@ RYBA.UnitHpChecker = {
     },
     
     isBaseTargetHp:function(maxHp, currentHp, conditionParam){
-        var baseHP = 100;
+        var baseHp = 100;
         baseHp = maxHp * (conditionParam.minHp / 100 );
         if (currentHp < baseHp) {
             return false;
