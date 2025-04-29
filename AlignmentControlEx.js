@@ -498,12 +498,10 @@ Ryba.AlignmentControl = {
         if(!data.isAttackRange){
             return true;
         }
-
-        var x = targetUnit.getMapX();
-        var y = targetUnit.getMapY()
-        var indexArray = IndexArray.createIndexArray(x, y, weapon);
+        
+        var indexArray = IndexArray.createIndexArray(unit.getMapX(), unit.getMapY(), weapon);
 		
-		return IndexArray.findPos(indexArray, x, y);
+		return IndexArray.findPos(indexArray, targetUnit.getMapX(), targetUnit.getMapY());
     },
 
     createAlignmentActionData:function(unit, isExchange, skill){
