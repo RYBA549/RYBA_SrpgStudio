@@ -197,6 +197,12 @@ Ryba.AlignmentControl = {
     // trueだと攻撃者にフュージョンユニットがいると発動しない。
     // falseだと居ても発動できる
     AttackFormationNotFusion: true,
+    //ダメージ倍率(%)
+    //50だと半分のダメージ。100だと通常のダメージ
+    AttackFormationDamageRate:50,
+    // trueだと攻陣する人が追撃を行える
+    // falseだと追撃不可
+    AttackFormationRound:false,
     //----------------------------------------------------------------------------------------
     _defaultShowSkill:null,
 
@@ -230,12 +236,16 @@ Ryba.AlignmentControl = {
         StateControl.arrangeState(unit, state, IncreaseType.DECREASE);
     },
 
+    removeNoEraseAttackState:function(unit){
+        var stateBaseList = root.getBaseData().getStateList();
+        var state = stateBaseList.getDataFromId(this.NoEraseAttackStateId);
+        StateControl.arrangeState(unit, state, IncreaseType.DECREASE);
+    },
+
     noEraseStateTempDeath:function(active,passive){
         var stateBaseList = root.getBaseData().getStateList();
         var state = stateBaseList.getDataFromId(this.NoEraseStateId);
         StateControl.arrangeState(passive, state, IncreaseType.INCREASE);
-        state = stateBaseList.getDataFromId(this.NoEraseAttackStateId);
-        StateControl.arrangeState(active, state, IncreaseType.DECREASE);
     },
 
     beforeAttackState:function(unit,data){
@@ -498,7 +508,7 @@ Ryba.AlignmentControl = {
         if(!data.isAttackRange){
             return true;
         }
-        
+
         var indexArray = IndexArray.createIndexArray(unit.getMapX(), unit.getMapY(), weapon);
 		
 		return IndexArray.findPos(indexArray, targetUnit.getMapX(), targetUnit.getMapY());
@@ -910,7 +920,7 @@ Ryba.AlignmentActionControl = {
         var mainData = [];
 
         //次の盤面の味方をチェック
-        var i, unit, weapon, activeTotalStatus, passiveTotalStatus, data;
+        var i, unit, weapon, activeTotalStatus, passiveTotalStatus, data, damage;
         var list;
 
         if(selfUnit.getUnitType() === UnitType.PLAYER){
@@ -953,7 +963,9 @@ Ryba.AlignmentActionControl = {
             unit = data.unit;
             weapon = ItemControl.getEquippedWeapon(unit);
             activeTotalStatus = SupportCalculator.createTotalStatus(unit);//{}
-            result += DamageCalculator.calculateDamage(unit, targetUnit, weapon, false, activeTotalStatus, passiveTotalStatus, 0);
+            damage = DamageCalculator.calculateDamage(unit, targetUnit, weapon, false, activeTotalStatus, passiveTotalStatus, 0);
+            damage = Math.floor(damage * Ryba.AlignmentControl.AttackFormationDamageRate / 100);
+            result += damage;
             attackerOn = true;
         }
         //root.log('attackerOn' + result);
@@ -966,9 +978,9 @@ Ryba.AlignmentActionControl = {
         return result;
     },
     moveBeforeAlignmentAttack: function(pearent,selfUnit,targetUnit, skillArray, list) {
+        //this.totalDamageCalculator(selfUnit,targetUnit);
         pearent._alignmentList = this._createAttackFormationList(selfUnit,targetUnit);
         var result = this._nextAlignment(targetUnit,pearent._alignmentList);
-        this.totalDamageCalculator(selfUnit,targetUnit);
         if(result !== null){
             pearent._preAttack = result.preAttack;
             pearent._lastAttackParam = result.attackParam;
@@ -1546,7 +1558,8 @@ Ryba.AttackAlignmentFlowEntry = defineObject(BaseFlowEntry,
         var order = attackFlow.getAttackOrder();
         var active = order.getActiveUnit();
 	    var passive = order.getPassiveUnit();
-        Ryba.AlignmentControl.removeNoEraseState(passive)
+        Ryba.AlignmentControl.removeNoEraseAttackState(active);
+        Ryba.AlignmentControl.removeNoEraseState(passive);
         return EnterResult.NOTENTER;
     }
 }
@@ -1605,4 +1618,24 @@ Ryba.AttackAlignmentFlowEntry = defineObject(BaseFlowEntry,
         aliasSetDeathState.call(this,unit);
         Ryba.AlignmentControl.removeNoEraseState(unit);
     };
+
+    var aliasCalculateDamage = DamageCalculator.calculateDamage;
+    DamageCalculator.calculateDamage = function(active, passive, weapon, isCritical, activeTotalStatus, passiveTotalStatus, trueHitValue) {
+        var damage = aliasCalculateDamage.call(this,active, passive, weapon, isCritical, activeTotalStatus, passiveTotalStatus, trueHitValue);
+        if( Ryba.AlignmentControl.findNoEraseAttackState(active) ) {
+            damage = Math.floor(damage * Ryba.AlignmentControl.AttackFormationDamageRate / 100);
+        }
+        return damage;
+    };
+
+    var aliasCalculateRoundCount = Calculator.calculateRoundCount;
+    Calculator.calculateRoundCount = function(active, passive, weapon) {
+        var count = aliasCalculateRoundCount.call(this,active, passive, weapon);
+        if(!Ryba.AlignmentControl.AttackFormationRound){
+            if( Ryba.AlignmentControl.findNoEraseAttackState(active) ) {
+                return 1;
+            }
+        }
+        return count;
+    }
 })();
