@@ -1428,7 +1428,7 @@ WeaponAutoAction._moveBeforeAutoAttack = function() {
 WeaponAutoAction.isSkipAllowed = function() {
     var mode = this.getCycleMode();
     
-    if (mode === WeaponAutoActionMode.PREATTACK || mode === AttackCommandMode.AutoAttack) {
+    if (mode === WeaponAutoActionMode.PREATTACK || mode === AttackCommandMode.AutoAttack || mode === AttackCommandMode.BeforeAutoAttack) {
         return false;
     }
 
