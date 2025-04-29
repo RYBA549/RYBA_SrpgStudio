@@ -1368,6 +1368,11 @@ Ryba.AlignmentAttackInfoBuilder = defineObject(NormalAttackInfoBuilder,
                 attackInfo.battleType = BattleType.FORCEEASY;
             }
         }
+        var weapon = ItemControl.getEquippedWeapon(attackParam.unit);
+        if(weapon){
+            //最大射程が1しかない場合は近接モーション
+            attackInfo.isDirectAttack = (weapon.getEndRange() === 1);
+        }
         
         return attackInfo;
     }
