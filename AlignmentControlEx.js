@@ -434,7 +434,7 @@ Ryba.AlignmentControl = {
             if(!this.checkPinching(data,param.attakcer, param.targetUnit,param.unit)){
                 continue;
             }
-            if(!this.checkAttackRange(data, param.attakcer, param.targetUnit,param.unit)){
+            if(!this.checkAttackRange(data, param.weapon, param.targetUnit,param.unit)){
                 continue;
             }
             return true;
@@ -491,15 +491,19 @@ Ryba.AlignmentControl = {
     },
 
 
-    checkAttackRange:function(data,attakcer,targetUnit,unit){
+    checkAttackRange:function(data,weapon,targetUnit,unit){
+        if(!weapon){
+            return false;
+        }
         if(!data.isAttackRange){
             return true;
         }
-        //root.log('checkAttackRange' + unit.getName());
-        if(AttackChecker.isCounterattackPos(targetUnit, unit, targetUnit.getMapX(), targetUnit.getMapY())){
-            return true;
-        }
-        return false;
+
+        var x = targetUnit.getMapX();
+        var y = targetUnit.getMapY()
+        var indexArray = IndexArray.createIndexArray(x, y, weapon);
+		
+		return IndexArray.findPos(indexArray, x, y);
     },
 
     createAlignmentActionData:function(unit, isExchange, skill){
@@ -899,9 +903,74 @@ Ryba.AlignmentSkillControl = {
 };
 
 Ryba.AlignmentActionControl = {
+    //連携攻撃の予測ダメージを返す
+    //予測ダメージを実装したい場合はこの関数の戻り値を利用して表示してください
+    //連携攻撃が発生しない場合-1を返す（戻り値0は連携攻撃は発生するがノーダメージ）
+    totalDamageCalculator:function(selfUnit,targetUnit){
+        var result = 0;
+
+        var mainData = [];
+
+        //次の盤面の味方をチェック
+        var i, unit, weapon, activeTotalStatus, passiveTotalStatus, data;
+        var list;
+
+        if(selfUnit.getUnitType() === UnitType.PLAYER){
+            list = PlayerList.getSortieList();
+        }else if(selfUnit.getUnitType() === UnitType.ENEMY){
+            list = EnemyList.getAliveList();
+        }else if(selfUnit.getUnitType() === UnitType.ALLY){
+            list = AllyList.getAliveList();
+        }else{
+            return -1;
+        }
+
+        passiveTotalStatus = SupportCalculator.createTotalStatus(targetUnit);
+
+        //スキルの追加攻撃のダメージ分
+        var count = list.getCount();
+        var attackerOn = false;
+        for( i = 0; i < count; ++i ){
+            unit = list.getData(i);
+            //自分同士で連携するのはおかしい
+            if(selfUnit === unit){
+               continue; 
+            }
+            weapon = ItemControl.getEquippedWeapon(unit);
+            if(!this._alignmentUnitAppendCheck(mainData,unit,targetUnit,selfUnit,weapon)){
+                continue;
+            } 
+            //支援効果の計算処理は非常に重たいため利用していないなら{}を渡したほうが良い
+            activeTotalStatus = SupportCalculator.createTotalStatus(unit);//{}
+            result += DamageCalculator.calculateDamage(unit, targetUnit, weapon, false, activeTotalStatus, passiveTotalStatus, 0);
+            attackerOn = true;
+        }
+
+        //攻陣ダメージ分
+        var attackFormationList = this._createAttackFormationList(selfUnit,targetUnit);
+        count = attackFormationList.length;
+        //root.log('attackFormationList' + count);
+        for( i = 0; i < count; ++i ){
+            data = attackFormationList[i];
+            unit = data.unit;
+            weapon = ItemControl.getEquippedWeapon(unit);
+            activeTotalStatus = SupportCalculator.createTotalStatus(unit);//{}
+            result += DamageCalculator.calculateDamage(unit, targetUnit, weapon, false, activeTotalStatus, passiveTotalStatus, 0);
+            attackerOn = true;
+        }
+        //root.log('attackerOn' + result);
+        if(!attackerOn){
+            if(result === 0){
+                return -1;
+            }
+        }
+        //root.log('最終連携ダメージ' + result);
+        return result;
+    },
     moveBeforeAlignmentAttack: function(pearent,selfUnit,targetUnit, skillArray, list) {
-        pearent._alignmentList = this._createAttackFormationList(selfUnit);
+        pearent._alignmentList = this._createAttackFormationList(selfUnit,targetUnit);
         var result = this._nextAlignment(targetUnit,pearent._alignmentList);
+        this.totalDamageCalculator(selfUnit,targetUnit);
         if(result !== null){
             pearent._preAttack = result.preAttack;
             pearent._lastAttackParam = result.attackParam;
@@ -930,7 +999,7 @@ Ryba.AlignmentActionControl = {
     
         return this._nextAlignment(targetUnit,pearent._alignmentList);
     },
-    _createAttackFormationList:function(selfUnit){
+    _createAttackFormationList:function(selfUnit,targetUnit){
         var result = [];
 
         if( Ryba.AlignmentControl.AttackFormationFusion ) {
@@ -939,7 +1008,7 @@ Ryba.AlignmentActionControl = {
             }
         }
 
-        var i, x, y, targetUnit, data;
+        var i, x, y, unit, data, param;
         for (i = 0; i < DirectionType.COUNT; i++) {
             //必要数以上だった場合、そこで終了
             if(result.length >= Ryba.AlignmentControl.AttackFormationCount){
@@ -949,19 +1018,30 @@ Ryba.AlignmentActionControl = {
 			x = selfUnit.getMapX() + XPoint[i];
 			y = selfUnit.getMapY() + YPoint[i];
 		
-			targetUnit = PosChecker.getUnitFromPos(x, y);
-			if (targetUnit === null){
+			unit = PosChecker.getUnitFromPos(x, y);
+			if (unit === null){
                 continue;
             }
             //違う陣営なら連携しない
-            if(targetUnit.getUnitType() !== selfUnit.getUnitType()){
+            if(unit.getUnitType() !== selfUnit.getUnitType()){
                 continue;
             }
-            data = Ryba.AlignmentControl.createAlignmentActionData(targetUnit,false,null);
+            data = Ryba.AlignmentControl.createAlignmentActionData(unit,false,null);
             data.isAttackFormation = true;
             data.isNoErase = true;
-            result.push(data);
-            //root.log('data')
+
+            //まずメインデータのチェック
+            param = Ryba.AlignmentControl.buildCheckDataParam();
+            param.data = [data];
+            param.attakcer = selfUnit;
+            param.targetUnit = targetUnit;
+            param.unit = unit;
+            param.weapon = ItemControl.getEquippedWeapon(unit);
+            //param.distance = distance;
+            if(Ryba.AlignmentControl.checkData(param)){
+                //条件を満たしていたら追加
+                result.push(data);
+            }
 		}
         //root.log('data' + result.length)
         return result;
@@ -975,7 +1055,7 @@ Ryba.AlignmentActionControl = {
         this._alignmentFusionAppendCheck(selfUnit,targetUnit,result);
     
         //次の盤面の味方をチェック
-        var i, unit;
+        var i, unit, weapon;
         var count = list.getCount();
         for( i = 0; i < count; ++i ){
             unit = list.getData(i);
@@ -983,7 +1063,8 @@ Ryba.AlignmentActionControl = {
             if(selfUnit === unit){
                continue; 
             }
-            if(!this._alignmentUnitAppendCheck(mainData,unit,targetUnit,selfUnit)){
+            weapon = ItemControl.getEquippedWeapon(unit);
+            if(!this._alignmentUnitAppendCheck(mainData,unit,targetUnit,selfUnit,weapon)){
                 continue;
             } 
             result.push(Ryba.AlignmentControl.createAlignmentActionData(unit,false,null));
@@ -1020,9 +1101,11 @@ Ryba.AlignmentActionControl = {
         //root.log('条件クリア');
         result.push(Ryba.AlignmentControl.createAlignmentActionData(child,fusionAlignmentData.isExchange,null));
     },
-    _alignmentUnitAppendCheck: function(mainData,unit,targetUnit,selfUnit){
+    _alignmentUnitAppendCheck: function(mainData,unit,targetUnit,selfUnit,weapon){
         //前提条件（そもそも攻撃できるかどうか）
-        var weapon = ItemControl.getEquippedWeapon(unit);
+        if(!weapon){
+            return false;
+        }
         
         //射程距離計測
         var distance = Ryba.AlignmentControl.getUnitDistance(unit, targetUnit);
@@ -1049,6 +1132,7 @@ Ryba.AlignmentActionControl = {
         param.attakcer = selfUnit;
         param.targetUnit = targetUnit;
         param.unit = unit;
+        param.weapon = weapon;
         param.distance = distance;
         if(!Ryba.AlignmentControl.checkData(param)){
             return false;
@@ -1242,19 +1326,6 @@ UnitCommand.Attack._moveResult = function() {
         return MoveResult.END;
     }
     return MoveResult.CONTINUE;
-};
-AttackChecker.checkCounterattack = function(unit, targetUnit) {
-    if(StateControl.isBadStateOption(targetUnit, BadStateOption.NOACTION)){
-        return null;
-    }
-    var weapon = ItemControl.getEquippedWeapon(targetUnit);
-    if(weapon === null){
-        return null;
-    }
-    if(AttackChecker.isCounterattackPos(unit, targetUnit, unit.getMapX(), unit.getMapY())){
-        return weapon;
-    }
-    return null;
 };
 //敵側-------
 WeaponAutoActionMode.AutoAttack = 1001;
