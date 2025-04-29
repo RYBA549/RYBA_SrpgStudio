@@ -495,7 +495,8 @@ Ryba.AlignmentControl = {
         if(!data.isAttackRange){
             return true;
         }
-        if(AttackChecker.isCounterattackPos(unit, targetUnit, unit.getMapX(), unit.getMapY())){
+        //root.log('checkAttackRange' + unit.getName());
+        if(AttackChecker.isCounterattackPos(targetUnit, unit, targetUnit.getMapX(), targetUnit.getMapY())){
             return true;
         }
         return false;
