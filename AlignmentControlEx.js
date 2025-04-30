@@ -1050,7 +1050,7 @@ Ryba.AlignmentActionControl = {
         }
 
         //攻陣ダメージ分
-        var attackFormationList = this._createAttackFormationList(selfUnit,targetUnit,isCounter);
+        var attackFormationList = this._createAttackFormationList(selfUnit,targetUnit,isCounter,false);
         count = attackFormationList.length;
         //root.log('attackFormationList' + count);
         for( i = 0; i < count; ++i ){
