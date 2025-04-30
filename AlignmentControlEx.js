@@ -32,6 +32,28 @@
     falseだと居ても発動できる
     AttackFormationNotFusion: true,
 
+    trueだと攻陣する人が追撃を行える
+    falseだと追撃不可
+    falseにした場合、追撃の分のダメージは予測ダメージに反映されないので要注意
+    AttackFormationRound:false,
+
+    trueだと反撃でも攻陣が発生するようになる
+    falseだと攻撃者が攻撃を仕掛けた時だけ発動する
+    ただし、下記の事情のため、trueにすると確率発動の先制攻撃スキルorどちらかの追撃発生時に挙動が原本と異なってしまう...
+    AttackFormationCounter:true,
+    
+    falseにした場合、常に（通常）の処理順となる。
+    発動率100%未満の先制攻撃を実装している場合、falseしないと挙動がおかしくなる
+    （条件を満たすと必ず発動するタイプ先制攻撃は大丈夫）
+    『』内は通常の戦闘を行う。
+    この間に他のユニットの攻撃を差し込むことは物理的に不可能なため
+    どちらかの追撃が発生するとちょっと辺になるが仕様という事で...。
+    ・攻撃者が先制する場合（通常）
+    　味方攻陣→『攻撃者の攻撃→敵の反撃』→敵の攻陣→味方の追加攻撃（援護射撃など）
+    ・反撃者が先制する場合（先制発生）
+    　敵の攻陣→『敵の攻撃→攻撃者の反撃』→味方攻陣→味方の追加攻撃（援護射撃など）
+    AttackFormationFastAttackCheck:true,
+
 ■設定項目（追加攻撃関連）
     発動時に表示するスキルのID
     -1にすると何も表示しない
@@ -147,6 +169,7 @@
 
 ■更新履歴
 　2025/04/29 作成
+  2025/04/30 反撃を忘れていたため攻陣反撃を追加。ついでに攻陣と連携攻撃の発動表示スキルのIDを分けれるように
 
 -----------------------------------------------------------------------------------------------*/
 var Ryba = Ryba || {};
@@ -191,6 +214,9 @@ Ryba.AlignmentControl = {
     EasyBattleSwitchId:-1,
     //=====================================================
     // 攻陣関連
+    //攻陣発動時に表示するスキルのID
+    //-1にすると何も表示しない
+    AttackFormationShowSkillNumber: -1,
     // 隣接している他の味方が戦闘前に攻撃してくれる人数の上限
     // 0以下にすると攻撃しなくなる
     AttackFormationCount: 1,
@@ -202,9 +228,26 @@ Ryba.AlignmentControl = {
     AttackFormationDamageRate:50,
     // trueだと攻陣する人が追撃を行える
     // falseだと追撃不可
+    // falseにした場合、追撃の分のダメージは予測ダメージに反映されないので要注意
     AttackFormationRound:false,
+    // trueだと反撃でも攻陣が発生するようになる
+    // falseだと攻撃者が攻撃を仕掛けた時だけ発動する
+    // ただし、下記の事情のため、trueにすると確率発動の先制攻撃スキルorどちらかの追撃発生時に挙動が原本と異なってしまう...
+    AttackFormationCounter:true,
+    // falseにした場合、常に（通常）の処理順となる。
+    // 発動率100%未満の先制攻撃を実装している場合、falseしないと挙動がおかしくなる
+    // （条件を満たすと必ず発動するタイプ先制攻撃は大丈夫）
+    // 『』内は通常の戦闘を行う。
+    // この間に他のユニットの攻撃を差し込むことは物理的に不可能なため
+    // どちらかの追撃が発生するとちょっと辺になるが仕様という事で...。
+    // ・攻撃者が先制する場合（通常）
+    // 　味方攻陣→『攻撃者の攻撃→敵の反撃』→敵の攻陣→味方の追加攻撃（援護射撃など）
+    // ・反撃者が先制する場合（先制発生）
+    // 　敵の攻陣→『敵の攻撃→攻撃者の反撃』→味方攻陣→味方の追加攻撃（援護射撃など）
+    AttackFormationFastAttackCheck:true,
     //----------------------------------------------------------------------------------------
     _defaultShowSkill:null,
+    _attackFormationShowSkill:null,
 
     setup:function(){
         if(this.DefaultSkillNumber < 0){
@@ -212,6 +255,7 @@ Ryba.AlignmentControl = {
         }
         var list = root.getBaseData().getSkillList();
         this._defaultShowSkill = list.getDataFromId(this.DefaultSkillNumber);
+        this._attackFormationShowSkill = list.getDataFromId(this.AttackFormationShowSkillNumber);
     },
 
     findNoCounterState:function(unit){
@@ -438,15 +482,19 @@ Ryba.AlignmentControl = {
             if(StateControl.isBadStateOption(param.unit, BadStateOption.NOACTION)){
                 continue;
             }
+            //root.log('isBadStateOption')
             if(!this.checkDistance(data,param.distance)){
                 continue;
             }
+            //root.log('checkDistance')
             if(!this.checkPinching(data,param.attakcer, param.targetUnit,param.unit)){
                 continue;
             }
+            //root.log('checkPinching')
             if(!this.checkAttackRange(data, param.weapon, param.targetUnit,param.unit)){
                 continue;
             }
+            //root.log('checkAttackRange')
             return true;
         }
         
@@ -514,15 +562,17 @@ Ryba.AlignmentControl = {
 		return IndexArray.findPos(indexArray, targetUnit.getMapX(), targetUnit.getMapY());
     },
 
-    createAlignmentActionData:function(unit, isExchange, skill){
+    createAlignmentActionData:function(unit, isExchange, isCounter, isAttackFormation, skill){
         if(skill === null){
-            skill = this._defaultShowSkill;
+            skill = isAttackFormation ? this._attackFormationShowSkill : this._defaultShowSkill;
         }
         return {
             unit: unit,
             isExchange: isExchange,
             skill: skill,
-            isAttackFormation: false,
+            //反撃者の連携
+            isCounter: isCounter,
+            isAttackFormation: isAttackFormation,
             isNoErase:false,
             isBeforeAlignment: false
         }
@@ -911,6 +961,48 @@ Ryba.AlignmentSkillControl = {
 };
 
 Ryba.AlignmentActionControl = {
+
+    //先制攻撃のチェック
+    //(発動率100%以外の先制攻撃は無理,発動率100%以外のチェックを行うと乱数がずれる)
+    getDefaultPriorityData: function(active,passive) {
+        
+        var result = {
+            isDefaultPriority:true,
+            isCounterattack:AttackChecker.isCounterattack(active,passive)
+        }
+        if(!Ryba.AlignmentControl.AttackFormationFastAttackCheck){
+            //TODO:確率発動スキルの判定を正確に取得するにはどこかに値を保持して参照する必要があるため非常に面倒である。
+            // そのため確率発動スキルがある場合は常に通常の処理順とする
+            return result;
+        }
+        var skilltype = SkillType.FASTATTACK;
+        var skill = SkillControl.getPossessionSkill(active, skilltype);
+        if (SkillRandomizer.isSkillInvoked(active, passive, skill)) {
+			// 攻撃をしかけた方が「先制攻撃」のスキルを持つ場合は、その時点で通常戦闘と判断する
+			result.isDefaultPriority = true;
+            return result;
+		}
+        if( result.isCounterattack ) {
+            skill = SkillControl.getPossessionSkill(passive, skilltype);	
+            if (SkillRandomizer.isSkillInvoked(passive, active, skill)) {
+				result.isDefaultPriority = false;
+                return result;
+			}
+        }
+        return result;
+    },
+    //味方のリストを返す
+    getFellowUnitList:function(unitType){
+        var list = null;
+        if(unitType === UnitType.PLAYER){
+            list = PlayerList.getSortieList();
+        }else if(unitType=== UnitType.ENEMY){
+            list = EnemyList.getAliveList();
+        }else if(unitType === UnitType.ALLY){
+            list = AllyList.getAliveList();
+        }
+        return list;
+    },
     //連携攻撃の予測ダメージを返す
     //予測ダメージを実装したい場合はこの関数の戻り値を利用して表示してください
     //連携攻撃が発生しない場合-1を返す（戻り値0は連携攻撃は発生するがノーダメージ）
@@ -922,14 +1014,11 @@ Ryba.AlignmentActionControl = {
         //次の盤面の味方をチェック
         var i, unit, weapon, activeTotalStatus, passiveTotalStatus, data, damage;
         var list;
+        var isCounter = false;
 
-        if(selfUnit.getUnitType() === UnitType.PLAYER){
-            list = PlayerList.getSortieList();
-        }else if(selfUnit.getUnitType() === UnitType.ENEMY){
-            list = EnemyList.getAliveList();
-        }else if(selfUnit.getUnitType() === UnitType.ALLY){
-            list = AllyList.getAliveList();
-        }else{
+        list = this.getFellowUnitList(selfUnit.getUnitType());
+
+        if(list === null){
             return -1;
         }
 
@@ -955,7 +1044,7 @@ Ryba.AlignmentActionControl = {
         }
 
         //攻陣ダメージ分
-        var attackFormationList = this._createAttackFormationList(selfUnit,targetUnit);
+        var attackFormationList = this._createAttackFormationList(selfUnit,targetUnit,isCounter);
         count = attackFormationList.length;
         //root.log('attackFormationList' + count);
         for( i = 0; i < count; ++i ){
@@ -977,10 +1066,22 @@ Ryba.AlignmentActionControl = {
         //root.log('最終連携ダメージ' + result);
         return result;
     },
-    moveBeforeAlignmentAttack: function(pearent,selfUnit,targetUnit, skillArray, list) {
-        //this.totalDamageCalculator(selfUnit,targetUnit);
-        pearent._alignmentList = this._createAttackFormationList(selfUnit,targetUnit);
-        var result = this._nextAlignment(targetUnit,pearent._alignmentList);
+    moveBeforeAlignmentAttack: function(pearent,selfUnit,targetUnit, defaultPriorityData) {
+        //this.totalDamageCalculator(selfUnit,targetUnit,false);
+        if(defaultPriorityData.isDefaultPriority){
+            pearent._alignmentList = this._createAttackFormationList(selfUnit,targetUnit,false,true);
+        }else{
+            pearent._alignmentList = [];
+            if(Ryba.AlignmentControl.AttackFormationCounter){
+                //root.log('counter' + defaultPriorityData.isCounterattack)
+                if(defaultPriorityData.isCounterattack){
+                    pearent._alignmentList = this._createAttackFormationList(targetUnit,selfUnit,true,true);
+                    //root.log('pearent._alignmentList' + pearent._alignmentList.length)
+                }
+            }
+        }
+        
+        var result = this._nextAlignment(selfUnit,targetUnit,pearent._alignmentList);
         if(result !== null){
             pearent._preAttack = result.preAttack;
             pearent._lastAttackParam = result.attackParam;
@@ -988,8 +1089,8 @@ Ryba.AlignmentActionControl = {
         }
         return MoveResult.END;
     },
-    moveAlignmentAttack: function(pearent,selfUnit,targetUnit,skillArray, list) {
-        var result = this._checkAlignmentAttack(pearent,selfUnit,targetUnit,skillArray,list);
+    moveAlignmentAttack: function(pearent,selfUnit,targetUnit,defaultPriorityData) {
+        var result = this._checkAlignmentAttack(pearent,selfUnit,targetUnit,defaultPriorityData);
         if(result !== null){
             pearent._preAttack = result.preAttack;
             pearent._lastAttackParam = result.attackParam;
@@ -997,19 +1098,31 @@ Ryba.AlignmentActionControl = {
         }
         return MoveResult.END;
     },
-    _checkAlignmentAttack: function(pearent,selfUnit,targetUnit,skillArray,list){
-        if( skillArray === null ){
-            return null;
-        }
+    _checkAlignmentAttack: function(pearent,selfUnit,targetUnit,defaultPriorityData){
         //死亡している場合追撃する意味はない
         if( !targetUnit || targetUnit.getHp() < 1 || selfUnit.getHp() < 1){
             return null;
         }
-        pearent._alignmentList = this._createAlignmentList(selfUnit,targetUnit,skillArray,list);
+        pearent._alignmentList = [];
+        if(defaultPriorityData.isDefaultPriority){
+            if(Ryba.AlignmentControl.AttackFormationCounter){
+                if(defaultPriorityData.isCounterattack){
+                    pearent._alignmentList = this._createAttackFormationList(targetUnit,selfUnit,true,false);
+                }
+            }
+        }else{
+            if(Ryba.AlignmentControl.AttackFormationCounter){
+                if(defaultPriorityData.isCounterattack){
+                    pearent._alignmentList = this._createAttackFormationList(selfUnit,targetUnit,false,false);
+                }
+            }
+        }
+
+        pearent._alignmentList = pearent._alignmentList.concat(this._createAlignmentList(selfUnit,targetUnit,false));
     
-        return this._nextAlignment(targetUnit,pearent._alignmentList);
+        return this._nextAlignment(selfUnit,targetUnit,pearent._alignmentList);
     },
-    _createAttackFormationList:function(selfUnit,targetUnit){
+    _createAttackFormationList:function(selfUnit,targetUnit,isCounter,isNoErase){
         var result = [];
 
         if( Ryba.AlignmentControl.AttackFormationFusion ) {
@@ -1017,7 +1130,7 @@ Ryba.AlignmentActionControl = {
                 return result;
             }
         }
-
+        //root.log('selfUnit' + selfUnit.getName())
         var i, x, y, unit, data, param;
         for (i = 0; i < DirectionType.COUNT; i++) {
             //必要数以上だった場合、そこで終了
@@ -1032,19 +1145,20 @@ Ryba.AlignmentActionControl = {
 			if (unit === null){
                 continue;
             }
+            //root.log('PosChecker.getUnitFromPos' + unit.getName() + unit.getUnitType() + ';' +unit.getUnitType())
             //違う陣営なら連携しない
             if(unit.getUnitType() !== selfUnit.getUnitType()){
                 continue;
             }
-            data = Ryba.AlignmentControl.createAlignmentActionData(unit,false,null);
-            data.isAttackFormation = true;
-            data.isNoErase = true;
+            //root.log('unit.getUnitType() === selfUnit.getUnitType()')
+            data = Ryba.AlignmentControl.createAlignmentActionData(unit,false,isCounter,true,null);
+            data.isNoErase = isNoErase;
 
             //まずメインデータのチェック
             param = Ryba.AlignmentControl.buildCheckDataParam();
             param.data = [data];
-            param.attakcer = selfUnit;
-            param.targetUnit = targetUnit;
+            param.attakcer = selfUnit;//isCounter ? targetUnit : selfUnit;
+            param.targetUnit = targetUnit;//isCounter ? selfUnit : targetUnit;
             param.unit = unit;
             param.weapon = ItemControl.getEquippedWeapon(unit);
             //param.distance = distance;
@@ -1056,13 +1170,19 @@ Ryba.AlignmentActionControl = {
         //root.log('data' + result.length)
         return result;
     },
-    _createAlignmentList: function(selfUnit,targetUnit,skillArray, list){
+    _createAlignmentList: function(selfUnit,targetUnit,isCounter){
         var result = [];
+        var list = this.getFellowUnitList(selfUnit.getUnitType());
+        var skillArray = Ryba.AlignmentSkillControl.getCustomSkillArray(selfUnit);
+
+        if( skillArray === null ){
+            return result;
+        }
         
         var mainData = Ryba.AlignmentControl.getAlignmentData_Main(skillArray);
         
         //まずフュージョンチェック
-        this._alignmentFusionAppendCheck(selfUnit,targetUnit,result);
+        this._alignmentFusionAppendCheck(selfUnit,targetUnit,isCounter,result);
     
         //次の盤面の味方をチェック
         var i, unit, weapon;
@@ -1077,11 +1197,11 @@ Ryba.AlignmentActionControl = {
             if(!this._alignmentUnitAppendCheck(mainData,unit,targetUnit,selfUnit,weapon)){
                 continue;
             } 
-            result.push(Ryba.AlignmentControl.createAlignmentActionData(unit,false,null));
+            result.push(Ryba.AlignmentControl.createAlignmentActionData(unit,false,isCounter,false,null));
         }
         return result;
     },
-    _alignmentFusionAppendCheck: function(selfUnit, targetUnit, result){
+    _alignmentFusionAppendCheck: function(selfUnit, targetUnit, isCounter,result){
         var child = FusionControl.getFusionChild(selfUnit);
         if(!child){
             return false;
@@ -1109,7 +1229,7 @@ Ryba.AlignmentActionControl = {
             return false;
         }
         //root.log('条件クリア');
-        result.push(Ryba.AlignmentControl.createAlignmentActionData(child,fusionAlignmentData.isExchange,null));
+        result.push(Ryba.AlignmentControl.createAlignmentActionData(child,fusionAlignmentData.isExchange,isCounter,false,null));
     },
     _alignmentUnitAppendCheck: function(mainData,unit,targetUnit,selfUnit,weapon){
         //前提条件（そもそも攻撃できるかどうか）
@@ -1150,8 +1270,8 @@ Ryba.AlignmentActionControl = {
     
         return true;
     },
-    nextAlignment: function(pearent,targetUnit,alignmentList) {
-        var result = this._nextAlignment(targetUnit,alignmentList);
+    nextAlignment: function(pearent, attacker, targetUnit,alignmentList) {
+        var result = this._nextAlignment(attacker, targetUnit, alignmentList);
         if(result !== null){
             pearent._preAttack = result.preAttack;
             pearent._lastAttackParam = result.attackParam;
@@ -1159,19 +1279,29 @@ Ryba.AlignmentActionControl = {
         }
         return false;
     },
-    _nextAlignment: function(targetUnit,alignmentList){
+    _nextAlignment: function(attacker,targetUnit,alignmentList){
         if(alignmentList.length < 1){
             return null;
         }
-        //死亡している場合追撃する意味はない
-        if( !targetUnit || targetUnit.getHp() < 1){
-            return null;
-        }
+        
         var data = alignmentList[0];
         alignmentList.shift();
+
         var attackParam = StructureBuilder.buildAttackParam();
-        attackParam.unit = data.unit;
-        attackParam.targetUnit = targetUnit
+
+        if( data.isCounter ) {
+            attackParam.unit = data.unit;
+            attackParam.targetUnit = attacker;
+        }else{
+            attackParam.unit = data.unit;
+            attackParam.targetUnit = targetUnit;
+        }
+
+        //死亡している場合追撃する意味はない
+        if( !attackParam.targetUnit || attackParam.targetUnit.getHp() < 1){
+            return null;
+        }
+        
         attackParam.attackStartType = AttackStartType.Alignment;
     
         //表示用スキルを登録
@@ -1185,7 +1315,7 @@ Ryba.AlignmentActionControl = {
         
         if (result === EnterResult.NOTENTER) {
             Ryba.AlignmentControl.removeShowSkill(data.unit);
-            return this._nextAlignment(targetUnit,alignmentList);
+            return this._nextAlignment(attacker,targetUnit,alignmentList);
         }
         // root.log(attackParam === null);
         // root.log('attackParam')
@@ -1201,6 +1331,7 @@ AttackCommandMode.AutoAttackSelect = 1002;
 AttackCommandMode.BeforeAutoAttack = 1003;
 UnitCommand.Attack._skillArray = null;
 UnitCommand.Attack._alignmentList = null;
+UnitCommand.Attack._defaultPriorityData = null;
 //新規関数
 UnitCommand.Attack.setSkillArray = function(array){
     this._skillArray = array;
@@ -1208,7 +1339,7 @@ UnitCommand.Attack.setSkillArray = function(array){
 UnitCommand.Attack._lastAttackParam = null;
 
 UnitCommand.Attack._moveBeforeAutoAttack = function(){
-    var result = this._baseMoveAutoAttack(this._posSelector.getSelectorTarget(false));
+    var result = this._baseMoveAutoAttack(this.getCommandTarget(),this._posSelector.getSelectorTarget(false));
     if(result === MoveResult.END){
         if(this._mainAttackStart() === MoveResult.END){
             return MoveResult.END;
@@ -1218,7 +1349,7 @@ UnitCommand.Attack._moveBeforeAutoAttack = function(){
     return MoveResult.CONTINUE;
 };
 UnitCommand.Attack._moveAutoAttack = function() {
-    var result = this._baseMoveAutoAttack(this._posSelector.getSelectorTarget(false));
+    var result = this._baseMoveAutoAttack(this.getCommandTarget(),this._posSelector.getSelectorTarget(false));
     if(result === MoveResult.END){
         this.endCommandAction();
         return MoveResult.END;
@@ -1226,9 +1357,9 @@ UnitCommand.Attack._moveAutoAttack = function() {
     return MoveResult.CONTINUE;
 };
 
-UnitCommand.Attack._baseMoveAutoAttack = function(targetUnit){
+UnitCommand.Attack._baseMoveAutoAttack = function(attacker, targetUnit){
     if (this._preAttack.movePreAttackCycle() !== MoveResult.CONTINUE) {
-        if(Ryba.AlignmentActionControl.nextAlignment(this,targetUnit,this._alignmentList)){
+        if(Ryba.AlignmentActionControl.nextAlignment(this,attacker, targetUnit,this._alignmentList)){
             return MoveResult.CONTINUE;
         }
         if(this._lastAttackParam){
@@ -1297,7 +1428,8 @@ UnitCommand.Attack._moveSelection = function() {
             this._preAttack = createObject(PreAttack);
             var selfUnit = this.getCommandTarget();
             var targetUnit = this._posSelector.getSelectorTarget(false);
-            var result = Ryba.AlignmentActionControl.moveBeforeAlignmentAttack(this,selfUnit,targetUnit,this._skillArray,PlayerList.getSortieList());
+            this._defaultPriorityData = Ryba.AlignmentActionControl.getDefaultPriorityData(selfUnit,targetUnit);
+            var result = Ryba.AlignmentActionControl.moveBeforeAlignmentAttack(this,selfUnit,targetUnit,this._defaultPriorityData);
             if(result === MoveResult.CONTINUE){
                 this.changeCycleMode(AttackCommandMode.BeforeAutoAttack);
                 return MoveResult.CONTINUE;
@@ -1327,7 +1459,7 @@ UnitCommand.Attack._moveResult = function() {
     if (this._preAttack.movePreAttackCycle() !== MoveResult.CONTINUE) {
         var selfUnit = this.getCommandTarget();
         var targetUnit = this._posSelector.getSelectorTarget(false);
-        var result = Ryba.AlignmentActionControl.moveAlignmentAttack(this,selfUnit,targetUnit,this._skillArray,PlayerList.getSortieList());
+        var result = Ryba.AlignmentActionControl.moveAlignmentAttack(this,selfUnit,targetUnit,this._defaultPriorityData);
         if(result === MoveResult.CONTINUE){
             this.changeCycleMode(AttackCommandMode.AutoAttack);
             return MoveResult.CONTINUE;
@@ -1339,6 +1471,7 @@ UnitCommand.Attack._moveResult = function() {
 };
 //敵側-------
 WeaponAutoActionMode.AutoAttack = 1001;
+WeaponAutoAction._defaultPriorityData = null;
 WeaponAutoAction.moveAutoAction = function() {
     var result = MoveResult.CONTINUE;
     var mode = this.getCycleMode();
@@ -1387,7 +1520,8 @@ WeaponAutoAction._baseEnterAutoAction = function() {
     return EnterResult.OK;
 };
 WeaponAutoAction.enterAutoAction = function() {
-    var result = Ryba.AlignmentActionControl.moveBeforeAlignmentAttack(this,this._unit,this._targetUnit,this._skillArray,EnemyList.getAliveList());
+    this._defaultPriorityData = Ryba.AlignmentActionControl.getDefaultPriorityData(this._unit,this._targetUnit);
+    var result = Ryba.AlignmentActionControl.moveBeforeAlignmentAttack(this,this._unit,this._targetUnit,this._defaultPriorityData);
     if(result === MoveResult.CONTINUE){
         this.changeCycleMode(AttackCommandMode.BeforeAutoAttack);
     }else{
@@ -1403,7 +1537,7 @@ WeaponAutoAction.enterAutoAction = function() {
 WeaponAutoAction._movePreAttack = function() {
     if (this._preAttack.movePreAttackCycle() !== MoveResult.CONTINUE) {
         
-        var result = Ryba.AlignmentActionControl.moveAlignmentAttack(this,this._unit,this._targetUnit,this._skillArray,EnemyList.getAliveList());
+        var result = Ryba.AlignmentActionControl.moveAlignmentAttack(this,this._unit,this._targetUnit,this._defaultPriorityData);
         if(result === MoveResult.CONTINUE){
             this.changeCycleMode(AttackCommandMode.AutoAttack);
             return MoveResult.CONTINUE;
@@ -1414,10 +1548,10 @@ WeaponAutoAction._movePreAttack = function() {
     return MoveResult.CONTINUE;
 };
 WeaponAutoAction._moveAutoAttack = function() {
-    return UnitCommand.Attack._baseMoveAutoAttack.call(this,this._targetUnit);
+    return UnitCommand.Attack._baseMoveAutoAttack.call(this,this._unit,this._targetUnit);
 };
 WeaponAutoAction._moveBeforeAutoAttack = function() {
-    var result = UnitCommand.Attack._baseMoveAutoAttack.call(this,this._targetUnit);
+    var result = UnitCommand.Attack._baseMoveAutoAttack.call(this,this._unit,this._targetUnit);
     if(result === MoveResult.END){
         if(this._baseEnterAutoAction() === EnterResult.NOTENTER){
             return MoveResult.END;
@@ -1506,26 +1640,6 @@ AttackFlow.executeAttackPocess = function(){
 	this._order.nextOrder();
 };
 
-// //攻陣攻撃中に倒されると困る
-// DamageEraseFlowEntry._doAction = function(damageData) {
-//     var targetUnit = damageData.targetUnit;
-//     root.log('DamageEraseFlowEntry._doAction')
-//     if (damageData.curHp > 0) {
-//         targetUnit.setHp(damageData.curHp);
-//     }
-//     else {
-//         targetUnit.setHp(0);
-//         // 状態を死亡に変更する
-//         root.log('状態を死亡に変更する')
-//         if( Ryba.AlignmentControl.findNoEraseAttackState(active) ) {
-//             Ryba.AlignmentControl.noEraseStateTempDeath(active,passive);
-//             root.log('noEraseStateTempDeath')
-//         }else{
-//             this.setDeathState(passive);
-//         }
-//     }
-// };
-
 AttackFlow.isBattleUnitLosted = function(){
     var active = this._order.getActiveUnit();
 	var passive = this._order.getPassiveUnit();
@@ -1608,7 +1722,6 @@ Ryba.AttackAlignmentFlowEntry = defineObject(BaseFlowEntry,
     var aliasAutoAction_setAutoActionInfo = WeaponAutoAction.setAutoActionInfo;
     WeaponAutoAction.setAutoActionInfo = function(unit, combination) {
         aliasAutoAction_setAutoActionInfo.call(this,unit,combination);
-        this._skillArray = Ryba.AlignmentSkillControl.getCustomSkillArray(unit);
     };
     //-----------
 
