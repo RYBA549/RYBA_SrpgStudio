@@ -1097,14 +1097,15 @@ Ryba.AlignmentActionControl = {
     },
     moveBeforeAlignmentAttack: function(pearent,selfUnit,targetUnit, defaultPriorityData) {
         //this.totalDamageCalculator(selfUnit,targetUnit,false);
+        var isNoErase = true;
         if(defaultPriorityData.isDefaultPriority){
-            pearent._alignmentList = this._createAttackFormationList(selfUnit,targetUnit,false,true);
+            pearent._alignmentList = this._createAttackFormationList(selfUnit,targetUnit,false,isNoErase);
         }else{
             pearent._alignmentList = [];
             if(Ryba.AlignmentControl.AttackFormationCounter){
                 //root.log('counter' + defaultPriorityData.isCounterattack)
                 if(defaultPriorityData.isCounterattack){
-                    pearent._alignmentList = this._createAttackFormationList(targetUnit,selfUnit,true,true);
+                    pearent._alignmentList = this._createAttackFormationList(targetUnit,selfUnit,true,isNoErase);
                     //root.log('pearent._alignmentList' + pearent._alignmentList.length)
                 }
             }
@@ -1132,18 +1133,19 @@ Ryba.AlignmentActionControl = {
         if( !targetUnit || targetUnit.getHp() < 1 || selfUnit.getHp() < 1){
             return null;
         }
+        var isNoErase = false;
         pearent._alignmentList = [];
         if(defaultPriorityData.isDefaultPriority){
             if(Ryba.AlignmentControl.AttackFormationCounter){
                 if(defaultPriorityData.isCounterattack){
-                    pearent._alignmentList = this._createAttackFormationList(targetUnit,selfUnit,true,false);
+                    pearent._alignmentList = this._createAttackFormationList(targetUnit,selfUnit,true,isNoErase);
                 }
             }
         }else{
-            pearent._alignmentList = this._createAttackFormationList(selfUnit,targetUnit,false,false);
+            pearent._alignmentList = this._createAttackFormationList(selfUnit,targetUnit,false,isNoErase);
         }
 
-        pearent._alignmentList = pearent._alignmentList.concat(this._createAlignmentList(selfUnit,targetUnit,false));
+        pearent._alignmentList = pearent._alignmentList.concat(this._createAlignmentList(selfUnit,targetUnit,false,isNoErase));
     
         return this._nextAlignment(selfUnit,targetUnit,pearent._alignmentList);
     },
@@ -1194,7 +1196,7 @@ Ryba.AlignmentActionControl = {
         //root.log('data' + result.length)
         return result;
     },
-    _createAlignmentList: function(selfUnit,targetUnit,isCounter){
+    _createAlignmentList: function(selfUnit,targetUnit,isCounter,isNoErase){
         var result = [];
         var list = this.getFellowUnitList(selfUnit.getUnitType());
         var skillArray = Ryba.AlignmentSkillControl.getCustomSkillArray(selfUnit);
@@ -1221,7 +1223,9 @@ Ryba.AlignmentActionControl = {
             if(!this._alignmentUnitAppendCheck(mainData,unit,targetUnit,selfUnit,weapon)){
                 continue;
             } 
-            result.push(Ryba.AlignmentControl.createAlignmentActionData(unit,false,isCounter,false,null));
+            data = Ryba.AlignmentControl.createAlignmentActionData(unit,false,isCounter,false,null);
+            data.isNoErase = isNoErase;
+            result.push(data);
         }
         return result;
     },
