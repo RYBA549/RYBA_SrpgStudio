@@ -99,6 +99,8 @@
     weaponTypeId:-1,
     minDistance:-1,
     maxDistance:-1,
+    minAttackerDistance:-1,
+    maxAttackerDistance:-1,
     isPinching:0,
     isAttackRange:1
    }
@@ -113,8 +115,10 @@
    「剣:0」
    「槍:1」
    「斧:2」
-   minDistance　最低射程です。これ以上だと発動可能になります。-1だと無条件です。
-   maxDistance  最高射程です。これ以下だと発動可能になります。-1だと無条件です。
+   minDistance　最低射程です。敵との距離がこれ以上だと発動可能になります。-1だと無条件です。
+   maxDistance  最高射程です。敵との距離がこれ以下だと発動可能になります。-1だと無条件です。
+   minAttackerDistance　最低射程です。攻撃者（味方）との距離がこれ以上だと発動可能になります。-1だと無条件です。
+   maxAttackerDistance  最高射程です。攻撃者（味方）との距離がこれ以下だと発動可能になります。-1だと無条件です。
    isPinching  1に設定すると攻撃したユニットの位置と対極のユニットが発動可能になります。0だと無条件です。
    isAttackRange  0に設定すると攻撃射程が足りなくても強制的に攻撃に参加できます
 
@@ -176,7 +180,7 @@
 ■更新履歴
 　2025/04/29 作成
   2025/04/30 反撃を忘れていたため攻陣反撃を追加。ついでに攻陣と連携攻撃の発動表示スキルのIDを分けれるように
-
+  2025/05/01 攻撃者（味方）との距離を設定条件に追加
 -----------------------------------------------------------------------------------------------*/
 var Ryba = Ryba || {};
 Ryba.AlignmentControl = {
@@ -243,7 +247,7 @@ Ryba.AlignmentControl = {
     // falseにした場合、常に（通常）の処理順となる。
     // 発動率100%未満の先制攻撃を実装している場合、falseしないと挙動がおかしくなる
     // （条件を満たすと必ず発動するタイプ先制攻撃は大丈夫）
-    // 『』内は通常の戦闘を行う。
+    // 『』内は通常の戦闘を行うAttackFormationFastAttackCheck。
     // この間に他のユニットの攻撃を差し込むことは物理的に不可能なため
     // どちらかの追撃が発生するとちょっと辺になるが仕様という事で...。
     // ・攻撃者が先制する場合（通常）
@@ -411,7 +415,7 @@ Ryba.AlignmentControl = {
             return result;
         }
 
-        var i, skill, minDis, maxDis, obj;
+        var i, skill, obj;
         var count = skills.length;
         for( i = 0; i < count; ++i){
             skill = skills[i];
@@ -425,18 +429,10 @@ Ryba.AlignmentControl = {
 
             //適応スキルが１つでもあった場合false
             obj = this._buildAlignmentData();
-            minDis = skill.custom.minDistance;
-            if(typeof minDis === 'number'){
-                if(obj.minDistance < 0 || minDis < obj.minDistance){
-                    obj.minDistance = minDis;
-                }
-            }
-            maxDis = skill.custom.maxDistance;
-            if(typeof maxDis === 'number'){
-                if(obj.maxDistance < 0 || obj.maxDistance < maxDis){
-                    obj.maxDistance = maxDis;
-                }
-            }
+            obj.minDistance = this._lessValue(skill.custom.minDistance,obj.minDistance);
+            obj.maxDistance = this._overValue(skill.custom.maxDistance,obj.maxDistance);
+            obj.minAttackerDistance = this._lessValue(skill.custom.minAttackerDistance,obj.minAttackerDistance);
+            obj.maxAttackerDistance = this._overValue(skill.custom.maxAttackerDistance,obj.maxAttackerDistance);
             if(!obj.isPinching){
                 if(typeof skill.custom.isPinching === 'number'){
                     obj.isPinching = (skill.custom.isPinching === 1);
@@ -453,10 +449,30 @@ Ryba.AlignmentControl = {
         return result;
     },
 
+    _lessValue:function(value,defValue){
+        if(typeof value === 'number'){
+            if(defValue < 0 || value < defValue){
+                return value;
+            }
+        }
+        return defValue;
+    },
+
+    _overValue:function(value,defValue){
+        if(typeof value === 'number'){
+            if(defValue < 0 || defValue < value){
+                return value;
+            }
+        }
+        return defValue;
+    },
+
     _buildAlignmentData:function(){
         return {
             minDistance:-1,
             maxDistance:-1,
+            minAttackerDistance:-1,
+            maxAttackerDistance:-1,
             isExchange:false,
             isPinching:false,
             isAttackRange:true
@@ -470,7 +486,8 @@ Ryba.AlignmentControl = {
             targetUnit:null,
             unit:null,
             weapon:null,
-            distance:0
+            distance:0,
+            attackerDistance:0
         }
     },
 
@@ -484,12 +501,18 @@ Ryba.AlignmentControl = {
             if(data === null || param.unit === null){
                 continue;
             }
+            //root.log('checkData'+param.unit.getName())
             //動けないなら攻撃も出来ないはず
             if(StateControl.isBadStateOption(param.unit, BadStateOption.NOACTION)){
                 continue;
             }
             //root.log('isBadStateOption')
-            if(!this.checkDistance(data,param.distance)){
+            //敵との距離
+            if(!this.checkDistance(data.minDistance,data.maxDistance,param.distance)){
+                continue;
+            }
+            //味方の攻撃者との距離
+            if(!this.checkDistance(data.minAttackerDistance,data.maxAttackerDistance,param.attackerDistance)){
                 continue;
             }
             //root.log('checkDistance')
@@ -539,15 +562,15 @@ Ryba.AlignmentControl = {
         return {x:unitX-mainX,y:unitY-mainY};
     },
 
-    checkDistance:function(data,dis){
+    checkDistance:function(minDistance,maxDistance,dis){
         
-        if( data.minDistance > -1 ){
-            if( data.minDistance > dis ) {
+        if( minDistance > -1 ){
+            if( minDistance > dis ) {
                 return false;
             }
         }
-        if( data.maxDistance > -1 ){
-            if( dis > data.maxDistance ) {
+        if( maxDistance > -1 ){
+            if( dis > maxDistance ) {
                 return false;
             }
         }
@@ -1050,7 +1073,7 @@ Ryba.AlignmentActionControl = {
         }
 
         //攻陣ダメージ分
-        var attackFormationList = this._createAttackFormationList(selfUnit,targetUnit,isCounter,false);
+        var attackFormationList = this._createAttackFormationList(selfUnit,targetUnit,isCounter);
         count = attackFormationList.length;
         //root.log('attackFormationList' + count);
         for( i = 0; i < count; ++i ){
@@ -1167,7 +1190,6 @@ Ryba.AlignmentActionControl = {
             param.targetUnit = targetUnit;//isCounter ? selfUnit : targetUnit;
             param.unit = unit;
             param.weapon = ItemControl.getEquippedWeapon(unit);
-            //param.distance = distance;
             if(Ryba.AlignmentControl.checkData(param)){
                 //条件を満たしていたら追加
                 result.push(data);
@@ -1231,6 +1253,7 @@ Ryba.AlignmentActionControl = {
         param.unit = child;
         param.weapon = weapon;
         param.distance = distance;
+        param.attackerDistance = Ryba.AlignmentControl.getUnitDistance(child, selfUnit);
         if(!Ryba.AlignmentControl.checkData(param)){
             return false;
         }
@@ -1245,6 +1268,7 @@ Ryba.AlignmentActionControl = {
         
         //射程距離計測
         var distance = Ryba.AlignmentControl.getUnitDistance(unit, targetUnit);
+        var attackerDistance = Ryba.AlignmentControl.getUnitDistance(unit, selfUnit);
     
         //まずメインデータのチェック
         var param = Ryba.AlignmentControl.buildCheckDataParam();
@@ -1254,6 +1278,7 @@ Ryba.AlignmentActionControl = {
         param.unit = unit;
         param.weapon = weapon;
         param.distance = distance;
+        param.attackerDistance = attackerDistance;
         if(Ryba.AlignmentControl.checkData(param)){
             //条件を満たしていたらtrue
             return true;
@@ -1270,6 +1295,7 @@ Ryba.AlignmentActionControl = {
         param.unit = unit;
         param.weapon = weapon;
         param.distance = distance;
+        param.attackerDistance = attackerDistance;
         if(!Ryba.AlignmentControl.checkData(param)){
             return false;
         }
