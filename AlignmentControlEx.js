@@ -180,7 +180,7 @@
 ■更新履歴
 　2025/04/29 作成
   2025/04/30 反撃を忘れていたため攻陣反撃を追加。ついでに攻陣と連携攻撃の発動表示スキルのIDを分けれるように
-  2025/05/01 攻撃者（味方）との距離を設定条件に追加
+  2025/05/01 相手に先制された時に攻陣が発生しないことが有ったのを修正。攻撃者（味方）との距離を設定条件に追加
 -----------------------------------------------------------------------------------------------*/
 var Ryba = Ryba || {};
 Ryba.AlignmentControl = {
@@ -1140,11 +1140,7 @@ Ryba.AlignmentActionControl = {
                 }
             }
         }else{
-            if(Ryba.AlignmentControl.AttackFormationCounter){
-                if(defaultPriorityData.isCounterattack){
-                    pearent._alignmentList = this._createAttackFormationList(selfUnit,targetUnit,false,false);
-                }
-            }
+            pearent._alignmentList = this._createAttackFormationList(selfUnit,targetUnit,false,false);
         }
 
         pearent._alignmentList = pearent._alignmentList.concat(this._createAlignmentList(selfUnit,targetUnit,false));
