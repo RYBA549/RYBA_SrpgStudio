@@ -181,6 +181,7 @@
 　2025/04/29 作成
   2025/04/30 反撃を忘れていたため攻陣反撃を追加。ついでに攻陣と連携攻撃の発動表示スキルのIDを分けれるように
   2025/05/01 相手に先制された時に攻陣が発生しないことが有ったのを修正。攻撃者（味方）との距離を設定条件に追加
+  2025/05/04 AfterBattleSkill競合対策
 -----------------------------------------------------------------------------------------------*/
 var Ryba = Ryba || {};
 Ryba.AlignmentControl = {
@@ -1364,6 +1365,7 @@ AttackCommandMode.BeforeAutoAttack = 1003;
 UnitCommand.Attack._skillArray = null;
 UnitCommand.Attack._alignmentList = null;
 UnitCommand.Attack._defaultPriorityData = null;
+UnitCommand.Attack._attackParam = null;
 //新規関数
 UnitCommand.Attack.setSkillArray = function(array){
     this._skillArray = array;
@@ -1371,7 +1373,7 @@ UnitCommand.Attack.setSkillArray = function(array){
 UnitCommand.Attack._lastAttackParam = null;
 
 UnitCommand.Attack._moveBeforeAutoAttack = function(){
-    var result = this._baseMoveAutoAttack(this.getCommandTarget(),this._posSelector.getSelectorTarget(false));
+    var result = this._baseMoveAutoAttack(this._attackParam.unit,this._attackParam.targetUnit);
     if(result === MoveResult.END){
         if(this._mainAttackStart() === MoveResult.END){
             return MoveResult.END;
@@ -1381,7 +1383,7 @@ UnitCommand.Attack._moveBeforeAutoAttack = function(){
     return MoveResult.CONTINUE;
 };
 UnitCommand.Attack._moveAutoAttack = function() {
-    var result = this._baseMoveAutoAttack(this.getCommandTarget(),this._posSelector.getSelectorTarget(false));
+    var result = this._baseMoveAutoAttack(this._attackParam.unit,this._attackParam.targetUnit);
     if(result === MoveResult.END){
         this.endCommandAction();
         return MoveResult.END;
@@ -1441,8 +1443,7 @@ UnitCommand.Attack.drawCommand = function() {
     }
 };
 UnitCommand.Attack._mainAttackStart = function(){
-    var attackParam = this._createAttackParam();
-    var result = this._preAttack.enterPreAttackCycle(attackParam);
+    var result = this._preAttack.enterPreAttackCycle(this._attackParam);
     if (result === EnterResult.NOTENTER) {
         this.endCommandAction();
         return MoveResult.END;
@@ -1458,10 +1459,9 @@ UnitCommand.Attack._moveSelection = function() {
             this._posSelector.endPosSelector();
             
             this._preAttack = createObject(PreAttack);
-            var selfUnit = this.getCommandTarget();
-            var targetUnit = this._posSelector.getSelectorTarget(false);
-            this._defaultPriorityData = Ryba.AlignmentActionControl.getDefaultPriorityData(selfUnit,targetUnit);
-            var result = Ryba.AlignmentActionControl.moveBeforeAlignmentAttack(this,selfUnit,targetUnit,this._defaultPriorityData);
+            this._attackParam = this._createAttackParam();
+            this._defaultPriorityData = Ryba.AlignmentActionControl.getDefaultPriorityData(this._attackParam.unit,this._attackParam.targetUnit);
+            var result = Ryba.AlignmentActionControl.moveBeforeAlignmentAttack(this,this._attackParam.unit,this._attackParam.targetUnit,this._defaultPriorityData);
             if(result === MoveResult.CONTINUE){
                 this.changeCycleMode(AttackCommandMode.BeforeAutoAttack);
                 return MoveResult.CONTINUE;
