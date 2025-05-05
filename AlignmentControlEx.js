@@ -1489,9 +1489,7 @@ UnitCommand.Attack._moveSelection = function() {
 };
 UnitCommand.Attack._moveResult = function() {
     if (this._preAttack.movePreAttackCycle() !== MoveResult.CONTINUE) {
-        var selfUnit = this.getCommandTarget();
-        var targetUnit = this._posSelector.getSelectorTarget(false);
-        var result = Ryba.AlignmentActionControl.moveAlignmentAttack(this,selfUnit,targetUnit,this._defaultPriorityData);
+        var result = Ryba.AlignmentActionControl.moveAlignmentAttack(this,this._attackParam.unit,this._attackParam.targetUnit,this._defaultPriorityData);
         if(result === MoveResult.CONTINUE){
             this.changeCycleMode(AttackCommandMode.AutoAttack);
             return MoveResult.CONTINUE;
