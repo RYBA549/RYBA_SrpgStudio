@@ -182,6 +182,13 @@
   2025/04/30 反撃を忘れていたため攻陣反撃を追加。ついでに攻陣と連携攻撃の発動表示スキルのIDを分けれるように
   2025/05/01 相手に先制された時に攻陣が発生しないことが有ったのを修正。攻撃者（味方）との距離を設定条件に追加
   2025/05/04 AfterBattleSkill競合対策
+  2025/05/05 予測表示用データを取得する関数
+  　　　　　　Ryba.AlignmentActionControl.getPredictionData(selfUnit,targetUnit)を追加
+  　　　　　　攻陣と追加攻撃するユニットのリストを取得できるように
+  　　　　　　   {
+                 formationList : 攻陣ユニットリスト,
+                 alignmentList : 連携攻撃ユニットリスト
+                }
 -----------------------------------------------------------------------------------------------*/
 var Ryba = Ryba || {};
 Ryba.AlignmentControl = {
@@ -1033,30 +1040,44 @@ Ryba.AlignmentActionControl = {
         }
         return list;
     },
-    //連携攻撃の予測ダメージを返す
-    //予測ダメージを実装したい場合はこの関数の戻り値を利用して表示してください
-    //連携攻撃が発生しない場合-1を返す（戻り値0は連携攻撃は発生するがノーダメージ）
-    totalDamageCalculator:function(selfUnit,targetUnit){
-        var result = 0;
+    _createBasePredictionData:function(){
+        return {
+            formationList:null,
+            alignmentList:null
+        }
+    },
+    /**
+     * 攻撃者と攻撃対象を引数として、攻陣と連携攻撃を行うユニットのリストを得る
+     * formationList : 攻陣ユニットリスト
+     * alignmentList : 連携攻撃ユニットリスト
+     * @param {*} selfUnit 
+     * @param {*} targetUnit 
+     * @returns {} 
+     * {
+     * formationList : 攻陣ユニットリスト
+     * alignmentList : 連携攻撃ユニットリスト
+     * }
+     */
+    getPredictionData:function(selfUnit,targetUnit){
+        var result = this._createBasePredictionData();
+        result.formationList = [];
+        result.alignmentList = [];
 
         var mainData = [];
 
-        //次の盤面の味方をチェック
-        var i, unit, weapon, activeTotalStatus, passiveTotalStatus, data, damage;
+        var i, unit;
         var list;
         var isCounter = false;
 
         list = this.getFellowUnitList(selfUnit.getUnitType());
 
         if(list === null){
-            return -1;
+            return result;
         }
 
-        passiveTotalStatus = SupportCalculator.createTotalStatus(targetUnit);
-
         //スキルの追加攻撃のダメージ分
+        
         var count = list.getCount();
-        var attackerOn = false;
         for( i = 0; i < count; ++i ){
             unit = list.getData(i);
             //自分同士で連携するのはおかしい
@@ -1067,25 +1088,58 @@ Ryba.AlignmentActionControl = {
             if(!this._alignmentUnitAppendCheck(mainData,unit,targetUnit,selfUnit,weapon)){
                 continue;
             } 
-            //支援効果の計算処理は非常に重たいため利用していないなら{}を渡したほうが良い
-            activeTotalStatus = SupportCalculator.createTotalStatus(unit);//{}
-            result += DamageCalculator.calculateDamage(unit, targetUnit, weapon, false, activeTotalStatus, passiveTotalStatus, 0);
-            attackerOn = true;
+            result.alignmentList.push(unit);
         }
 
-        //攻陣ダメージ分
         var attackFormationList = this._createAttackFormationList(selfUnit,targetUnit,isCounter);
         count = attackFormationList.length;
-        //root.log('attackFormationList' + count);
         for( i = 0; i < count; ++i ){
             data = attackFormationList[i];
             unit = data.unit;
+            result.formationList.push(unit);
+        }
+        return result;
+    },
+    //連携攻撃の予測ダメージを返す
+    //予測ダメージを実装したい場合はこの関数の戻り値を利用して表示してください
+    //連携攻撃が発生しない場合-1を返す（戻り値0は連携攻撃は発生するがノーダメージ）
+    totalDamageCalculator:function(selfUnit,targetUnit){
+
+        var predictionData = this.getPredictionData(selfUnit,targetUnit);
+
+        var result = 0;
+
+        //次の盤面の味方をチェック
+        var i, unit, weapon, activeTotalStatus, passiveTotalStatus, damage;
+
+        passiveTotalStatus = SupportCalculator.createTotalStatus(targetUnit);
+
+        //スキルの追加攻撃のダメージ分
+        var count = predictionData.alignmentList.length;
+        var attackerOn = (count > 0);
+        for( i = 0; i < count; ++i ){
+            unit = predictionData.alignmentList[i];
+            //自分同士で連携するのはおかしい
+            if(selfUnit === unit){
+               continue; 
+            }
+            weapon = ItemControl.getEquippedWeapon(unit);
+            //支援効果の計算処理は非常に重たいため利用していないなら{}を渡したほうが良い
+            activeTotalStatus = SupportCalculator.createTotalStatus(unit);//{}
+            result += DamageCalculator.calculateDamage(unit, targetUnit, weapon, false, activeTotalStatus, passiveTotalStatus, 0);
+        }
+
+        //攻陣ダメージ分
+        count = predictionData.formationList.length;
+        attackerOn |= (count > 0);
+        //root.log('attackFormationList' + count);
+        for( i = 0; i < count; ++i ){
+            unit = predictionData.formationList[i];
             weapon = ItemControl.getEquippedWeapon(unit);
             activeTotalStatus = SupportCalculator.createTotalStatus(unit);//{}
             damage = DamageCalculator.calculateDamage(unit, targetUnit, weapon, false, activeTotalStatus, passiveTotalStatus, 0);
             damage = Math.floor(damage * Ryba.AlignmentControl.AttackFormationDamageRate / 100);
             result += damage;
-            attackerOn = true;
         }
         //root.log('attackerOn' + result);
         if(!attackerOn){
